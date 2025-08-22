@@ -5,23 +5,30 @@
 
 echo "Welcome to the Interactive GitHub Operations Script!"
 
-# Ask for the repository URL
-read -p "Enter the GitHub repository URL (e.g., https://github.com/username/repo.git): " repo_url
+# Ask for the repository URL or initialize a new repo if no URL is provided
+read -p "Enter the GitHub repository URL (e.g., https://github.com/username/repo.git) or leave empty to initialize a new repo: " repo_url
 
-# Clone the repository
-echo "Cloning repository from $repo_url..."
-git clone "$repo_url" || { echo "Failed to clone repository. Exiting."; exit 1; }
+# If repo_url is empty, initialize a new repository
+if [ -z "$repo_url" ]; then
+    echo "Initializing a new Git repository..."
+    git init || { echo "Failed to initialize repository. Exiting."; exit 1; }
+    echo "New Git repository initialized."
+else
+    # Clone the repository if a URL is provided
+    echo "Cloning repository from $repo_url..."
+    git clone "$repo_url" || { echo "Failed to clone repository. Exiting."; exit 1; }
 
-# Change into the repository directory
-repo_name=$(basename "$repo_url" .git)
-cd "$repo_name" || { echo "Failed to navigate into the repository directory. Exiting."; exit 1; }
+    # Change into the repository directory
+    repo_name=$(basename "$repo_url" .git)
+    cd "$repo_name" || { echo "Failed to navigate into the repository directory. Exiting."; exit 1; }
+fi
 
 # Display the main menu of options
 while true; do
     echo "Choose an operation:"
     echo "1. Create a new branch"
     echo "2. Checkout an existing branch"
-    echo "3. Add changes"
+    echo "3. Add changes (git add .)"
     echo "4. Commit changes"
     echo "5. Push changes"
     echo "6. Force push to remote"
@@ -30,9 +37,10 @@ while true; do
     echo "9. Pull updates from the remote repository"
     echo "10. Update README.md (Open with Pluma)"
     echo "11. GitHub Pages and Codespaces Operations"
-    echo "12. Exit"
+    echo "12. SSH Key Operations"
+    echo "13. Exit"
 
-    read -p "Enter your choice (1-12): " choice
+    read -p "Enter your choice (1-13): " choice
 
     case $choice in
         1)  # Create a new branch
@@ -45,17 +53,10 @@ while true; do
             git checkout "$branch_name" || { echo "Failed to checkout branch. Exiting."; exit 1; }
             echo "Switched to branch: $branch_name"
             ;;
-        3)  # Add changes
-            echo "Now, let's stage your changes. Please ensure you've made modifications to the repository files."
-            read -p "Do you want to add all changes? (y/n): " add_changes
-            if [[ "$add_changes" == "y" || "$add_changes" == "Y" ]]; then
-                git add . || { echo "Failed to add changes. Exiting."; exit 1; }
-                echo "All changes added."
-            else
-                read -p "Enter the specific file(s) you want to add (space-separated): " files_to_add
-                git add $files_to_add || { echo "Failed to add files. Exiting."; exit 1; }
-                echo "Files added: $files_to_add"
-            fi
+        3)  # Add changes (git add .)
+            echo "Now, let's stage your changes. This will add all changes in the repository."
+            git add . || { echo "Failed to add changes. Exiting."; exit 1; }
+            echo "All changes added."
             ;;
         4)  # Commit changes
             read -p "Enter commit message: " commit_message
@@ -143,12 +144,51 @@ while true; do
                 esac
             done
             ;;
-        12)  # Exit the script
+        12)  # SSH Key Operations Menu
+            while true; do
+                echo "SSH Key Operations:"
+                echo "1. Generate a new SSH key"
+                echo "2. Add SSH key to the SSH agent"
+                echo "3. Add SSH key to GitHub"
+                echo "4. Back to Main Menu"
+
+                read -p "Enter your choice (1-4): " ssh_choice
+
+                case $ssh_choice in
+                    1)  # Generate a new SSH key
+                        echo "Generating a new SSH key..."
+                        read -p "Enter your email address (for SSH key): " email
+                        ssh-keygen -t rsa -b 4096 -C "$email" || { echo "Failed to generate SSH key. Exiting."; exit 1; }
+                        echo "SSH key generated successfully."
+                        ;;
+                    2)  # Add SSH key to the SSH agent
+                        echo "Adding SSH key to the SSH agent..."
+                        eval "$(ssh-agent -s)" || { echo "Failed to start SSH agent. Exiting."; exit 1; }
+                        read -p "Enter the path to your SSH private key (default: ~/.ssh/id_rsa): " ssh_key_path
+                        ssh-add "${ssh_key_path:-~/.ssh/id_rsa}" || { echo "Failed to add SSH key to agent. Exiting."; exit 1; }
+                        echo "SSH key added to the SSH agent."
+                        ;;
+                    3)  # Add SSH key to GitHub
+                        echo "Adding SSH key to GitHub..."
+                        cat ~/.ssh/id_rsa.pub || { echo "Failed to display SSH public key. Exiting."; exit 1; }
+                        read -p "Copy the SSH key and add it to GitHub under 'Settings' -> 'SSH and GPG keys'. Press Enter when done: "
+                        echo "SSH key added to GitHub."
+                        ;;
+                    4)  # Back to the main menu
+                        break
+                        ;;
+                    *)  # Invalid SSH Key option
+                        echo "Invalid choice, please enter a number between 1 and 4."
+                        ;;
+                esac
+            done
+            ;;
+        13)  # Exit the script
             echo "Exiting GitHub Operations Script."
             exit 0
             ;;
         *)  # Invalid option
-            echo "Invalid choice, please enter a number between 1 and 12."
+            echo "Invalid choice, please enter a number between 1 and 13."
             ;;
     esac
 done
