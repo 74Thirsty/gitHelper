@@ -1,108 +1,148 @@
 # GitHub Operations Script
 
-This script allows you to interactively perform common Git operations. It includes a variety of options for managing repositories, branches, commits, deployments to GitHub Pages, and integration with GitHub Codespaces. The operations are accessible through an easy-to-use text-based menu.
+An interactive script for managing Git operations, GitHub Pages deployment, and SSH key management. This script helps automate common Git tasks and integrates with GitHub Pages and GitHub Codespaces. It also provides utilities for generating and managing SSH keys.
 
-## Features:
+## Features
 
-1. **Clone a Repository**
-   Clone any GitHub repository to your local machine.
+### General Git Operations:
 
-2. **Create and Checkout Branches**
-   Create new branches or switch between existing ones.
+* **Clone a Repository**: Clone any GitHub repository to your local machine.
+* **Create & Checkout Branches**: Create a new branch or switch between existing branches.
+* **Add, Commit & Push Changes**: Stage changes with `git add .`, commit changes, and push them to the remote repository.
+* **Force Push Changes**: Force push changes to the remote repository (overwrites existing history).
+* **View Commit History**: View the commit log in a simplified format.
+* **Revert to a Previous Commit**: Revert the repository to a specific commit.
+* **Pull Latest Updates**: Fetch and merge updates from the remote repository.
 
-3. **Stage and Commit Changes**
-   Add changes to the staging area and commit them with a message.
+### GitHub Pages and Codespaces:
 
-4. **Push and Force Push Changes**
-   Push your local changes to the remote repository. The script also allows for forced pushes, which will overwrite remote changes.
+* **Deploy to GitHub Pages**: Deploy changes to a `gh-pages` branch or main branch, for GitHub Pages hosting.
+* **Open a GitHub Codespace**: Create and open a GitHub Codespace for your repository.
 
-5. **View Commit History**
-   Show all commits made on the current branch.
+### SSH Key Management:
 
-6. **Revert to a Previous Commit**
-   Revert to a specific commit using its hash.
+* **Generate SSH Key**: Generate a new SSH key pair for use with GitHub.
+* **Add SSH Key to Agent**: Add the SSH key to the SSH agent for seamless GitHub authentication.
+* **Add SSH Key to GitHub**: Display the public key and prompt you to add it to your GitHub account via the GitHub web interface.
 
-7. **Pull Latest Updates**
-   Pull the latest changes from the remote repository.
+## Prerequisites
 
-8. **Update `README.md`**
-   Open `README.md` for editing in the Pluma text editor. After editing, you can commit and push the changes to the repository.
+Before using this script, ensure that the following tools are installed on your system:
 
-9. **GitHub Pages and Codespaces Operations**
-
-   * **Deploy to GitHub Pages**: Deploy the current repository to GitHub Pages.
-   * **Open GitHub Codespace**: Create and open a new GitHub Codespace for the current repository and branch.
-
-10. **Exit**
-    Exit the script.
-
-## Requirements:
-
-* **Pluma**: Used to edit the `README.md` file. Install it using:
+* **Pluma** (for editing `README.md`):
+  Install with:
 
   ```bash
   sudo apt install pluma
   ```
-* **GitHub CLI (`gh`)**: Required for GitHub Codespaces integration. Install it using:
+
+* **GitHub CLI (`gh`)** (for GitHub Codespaces integration):
+  Install with:
 
   ```bash
   sudo apt install gh
   ```
 
-## Usage:
+## Installation
 
-1. Save the script as `github_operations.sh`.
+1. Download or clone this repository:
+
+   ```bash
+   git clone https://github.com/username/repo.git
+   ```
+
 2. Make the script executable:
 
    ```bash
    chmod +x github_operations.sh
    ```
+
 3. Run the script:
 
    ```bash
    ./github_operations.sh
    ```
 
-Once executed, the script will display an interactive menu with options. Follow the prompts to perform the desired Git operations.
+## Usage
 
-## Example of Workflow:
+### Main Menu Options:
 
-1. Clone a repository:
+* **Create a new branch**: Create a new Git branch for feature development or bug fixes.
+* **Checkout an existing branch**: Switch between branches within the repository.
+* **Add changes**: Stage changes (`git add .`).
+* **Commit changes**: Commit your staged changes with a commit message.
+* **Push changes**: Push your local commits to the remote repository.
+* **Force push**: Force push your changes to overwrite the remote history.
+* **Show all commits**: View the commit history.
+* **Revert to a previous commit**: Roll back the repository to a specific commit.
+* **Pull updates**: Fetch and merge the latest changes from the remote repository.
+* **Update `README.md`**: Open `README.md` for editing with Pluma. Commit and push changes to GitHub.
+
+### GitHub Pages and Codespaces:
+
+* **Deploy to GitHub Pages**: Deploy your site to GitHub Pages using the `gh-pages` branch.
+* **Open GitHub Codespace**: Create and open a GitHub Codespace for cloud-based development.
+
+### SSH Key Operations:
+
+* **Generate a new SSH key**: Generate a new SSH key pair for GitHub authentication.
+* **Add SSH key to the agent**: Add your SSH private key to the SSH agent for use with GitHub.
+* **Add SSH key to GitHub**: Display your public SSH key and guide you to add it to GitHub.
+
+### Example Workflow
+
+1. **Clone a repository**:
 
    ```bash
    Enter the GitHub repository URL (e.g., https://github.com/username/repo.git): https://github.com/username/repo.git
    ```
-2. Create a new branch:
+
+2. **Create a new branch**:
 
    ```bash
    Enter the new branch name: feature-xyz
    ```
-3. Commit changes:
+
+3. **Add and commit changes**:
 
    ```bash
+   Do you want to add all changes? (y/n): y
    Enter commit message: Added new feature XYZ
    ```
-4. Push changes to the repository:
+
+4. **Push changes to GitHub**:
 
    ```bash
    Do you want to push changes to the repository? (y/n): y
    ```
-5. Deploy to GitHub Pages:
+
+5. **Deploy to GitHub Pages**:
 
    ```bash
    Deploying to GitHub Pages...
    ```
 
-## Script Overview:
+6. **Generate an SSH Key**:
 
-The script guides you through multiple Git operations. Here are the steps:
+   ```bash
+   Enter your email address (for SSH key): youremail@example.com
+   ```
 
-1. Clone the repository using the repository URL.
-2. Navigate to the repository directory.
-3. Display an interactive menu with various Git operations.
-4. Based on your choices, the script will execute the appropriate Git commands and provide feedback.
-5. The script also offers GitHub Pages deployment and Codespaces management, providing a seamless experience for GitHub-based workflows.
+7. **Add SSH Key to GitHub**:
 
-## License:
+   ```bash
+   Copy the SSH key and add it to GitHub under 'Settings' -> 'SSH and GPG keys'.
+   ```
 
-This script is licensed under the MIT License. See LICENSE for more details.
+## Script Overview
+
+The script is divided into different operation categories to help manage GitHub repositories, GitHub Pages, and SSH key management. It provides a menu-driven interface where users can perform the following tasks:
+
+* Manage Git branches, commits, and pushes.
+* Deploy content to GitHub Pages for static site hosting.
+* Create and manage SSH keys for secure GitHub authentication.
+* Launch a GitHub Codespace for cloud development.
+
+## License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
