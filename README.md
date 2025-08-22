@@ -106,7 +106,3 @@ The script guides you through multiple Git operations. Here are the steps:
 ## License:
 
 This script is licensed under the MIT License. See LICENSE for more details.
-
----
-
-This `README.md` provides an overview of the script’s purpose, installation instructions, and examples of usage. Let me know if you need any additional modifications or specific changes!
