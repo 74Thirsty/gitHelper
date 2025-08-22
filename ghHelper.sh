@@ -3,7 +3,7 @@
 # GitHub Operations Script
 # This script allows users to interactively perform basic GitHub tasks.
 
-echo "Welcome to the Interactive GitHub Operations Script!"
+echo "Welcome to the Interactive GitHub Operations Script! by C. Hirschauer"
 
 # Ask for the repository URL or initialize a new repo if no URL is provided
 read -p "Enter the GitHub repository URL (e.g., https://github.com/username/repo.git) or leave empty to initialize a new repo: " repo_url
