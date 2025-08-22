@@ -1,14 +1,17 @@
 # GitHub Operations Script
-<p align="center">
-  <img src="https://i.postimg.cc/hv3TnBYf/profit-cropped.gif">
-</p>
 
-<a href="#"><img src="https://img.shields.io/badge/Built%20with-PyCharm-8fbad9?logo=pycharm&logoColor=black&labelColor=7bafd4"></a>
-<a href="#"><img src="https://img.shields.io/badge/Python-3.10_|_3.11_|_3.12-b7d0e3?logo=python&logoColor=black&labelColor=a3c5de"></a>
-<a href="#"><img src="https://img.shields.io/badge/Solidity-0.8.20_|_0.8.28-dfe7ed?logo=ethereum&logoColor=black&labelColor=cbdce8"></a>
-<a href="#"><img src="https://img.shields.io/badge/Flashbots-MEV%20Bundle-b7d0e3?logo=thunderbird&logoColor=black&labelColor=cbdce8"></a>
-<a href="#"><img src="https://img.shields.io/badge/Ephemeral-Contracts-7bafd4?logo=nodedotjs&logoColor=black&labelColor=8fbad9"></a>
+![GADGET SAAVY banner](https://raw.githubusercontent.com/74Thirsty/74Thirsty/main/assets/banner.svg)
 
+
+[![Cyfrin](https://img.shields.io/badge/Cyfrin-Audit%20Ready-005030?logo=shield&labelColor=F47321)](https://www.cyfrin.io/)
+[![Python](https://img.shields.io/badge/Python-3.11-003057?logo=python&labelColor=B3A369)](https://www.python.org/)
+[![pYcHARM](https://img.shields.io/badge/Built%20with-PyCharm-782F40?logo=pycharm&logoColor=CEB888)](https://www.jetbrains.com/pycharm/)
+[![Issues](https://img.shields.io/github/issues/74Thirsty/gitHelper.svg?color=hotpink&labelColor=brightgreen)](https://github.com/74Thirsty/gitHelper/issues)
+[![Security](https://img.shields.io/badge/encryption-AES--256-orange.svg?color=13B5EA&labelColor=9EA2A2)]()
+
+> <p><strong>Christopher Hirschauer</strong><br>
+> Builder @ the bleeding edge of MEV, automation, and high-speed arbitrage.<br>
+<em>August 21, 2025</em></p>
 ---
 
 
