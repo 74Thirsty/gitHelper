@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import curses
 from dataclasses import dataclass, field
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Tuple
 
 from .config import apply_theme, resolve_theme
 from .git import Commit, GitCommandError, GitInterface, HeadSnapshot
@@ -57,6 +57,15 @@ HELP_TEXT = [
 GITHUB_TABS = ["issues", "pulls", "actions"]
 
 
+HEADER_HEIGHT = 3
+STATUS_HEIGHT = 2
+MIN_BODY_HEIGHT = 8
+MIN_TIMELINE_WIDTH = 30
+MIN_DETAIL_WIDTH = 28
+MIN_TOTAL_HEIGHT = HEADER_HEIGHT + STATUS_HEIGHT + MIN_BODY_HEIGHT
+MIN_TOTAL_WIDTH = MIN_TIMELINE_WIDTH + MIN_DETAIL_WIDTH
+
+
 class NeonGitApp:
     def __init__(self, stdscr: curses.window):
         self.stdscr = stdscr
@@ -64,6 +73,7 @@ class NeonGitApp:
         self.theme = resolve_theme()
         self.colors = apply_theme(self.theme)
         curses.curs_set(0)
+        self.stdscr.keypad(True)
         self.stdscr.timeout(200)
         commits = self.git.list_commits()
         self.state = AppState(commits=commits)
@@ -74,23 +84,27 @@ class NeonGitApp:
         self.github_cache: Dict[str, List[GitHubItem] | List[WorkflowRun]] = {}
         self.plugins: List[Plugin] = load_plugins()
         self.state.status = f"Loaded {len(commits)} commits. Press ? for help."
+        self._header_win: Optional[curses.window] = None
+        self._timeline_win: Optional[curses.window] = None
+        self._detail_win: Optional[curses.window] = None
+        self._status_win: Optional[curses.window] = None
 
     # ------------------------------------------------------------------ rendering
     def render(self) -> None:
-        self.stdscr.erase()
         max_y, max_x = self.stdscr.getmaxyx()
-        header_height = 3
-        status_height = 2
-        body_height = max_y - header_height - status_height
-        body_height = max(body_height, 10)
-        timeline_width = max(int(max_x * 0.45), 40)
-        detail_width = max_x - timeline_width
+        layout = self._layout_windows(max_y, max_x)
+        if not layout:
+            self._render_resize_hint(max_y, max_x)
+            return
 
-        header_win = curses.newwin(header_height, max_x, 0, 0)
-        timeline_win = curses.newwin(body_height, timeline_width, header_height, 0)
-        detail_win = curses.newwin(body_height, detail_width, header_height, timeline_width)
-        status_win = curses.newwin(status_height, max_x, header_height + body_height, 0)
+        header_win, timeline_win, detail_win, status_win = layout
 
+        self.stdscr.erase()
+        # Clear the backing buffer before child windows push their updates so
+        # ``doupdate`` paints them on top of a clean slate. Calling
+        # ``noutrefresh`` after the child windows would wipe their content, so
+        # we do it immediately after erasing ``stdscr``.
+        self.stdscr.noutrefresh()
         self._render_header(header_win)
         self._render_timeline(timeline_win)
         self._render_detail(detail_win)
@@ -102,10 +116,92 @@ class NeonGitApp:
             self._render_danger_overlay()
 
         # All child windows call ``noutrefresh`` so we need to follow up with a
-        # ``doupdate`` to paint them to the terminal. ``refresh`` only updates
-        # the stdscr buffer which left the UI blank.
-        self.stdscr.noutrefresh()
+        # ``doupdate`` to paint them to the terminal.
         curses.doupdate()
+
+    def _layout_windows(
+        self, max_y: int, max_x: int
+    ) -> Optional[Tuple[curses.window, curses.window, curses.window, curses.window]]:
+        if max_y < MIN_TOTAL_HEIGHT or max_x < MIN_TOTAL_WIDTH:
+            self._clear_window_cache()
+            return None
+
+        body_height = max_y - HEADER_HEIGHT - STATUS_HEIGHT
+        if body_height < MIN_BODY_HEIGHT:
+            self._clear_window_cache()
+            return None
+
+        timeline_width = max(int(max_x * 0.45), MIN_TIMELINE_WIDTH)
+        max_timeline_width = max_x - MIN_DETAIL_WIDTH
+        if max_timeline_width < MIN_TIMELINE_WIDTH:
+            self._clear_window_cache()
+            return None
+        timeline_width = min(timeline_width, max_timeline_width)
+        detail_width = max_x - timeline_width
+        if detail_width < MIN_DETAIL_WIDTH:
+            detail_width = MIN_DETAIL_WIDTH
+            timeline_width = max_x - detail_width
+        if timeline_width < MIN_TIMELINE_WIDTH or detail_width < MIN_DETAIL_WIDTH:
+            self._clear_window_cache()
+            return None
+
+        try:
+            header_win = self._create_or_resize_window("_header_win", HEADER_HEIGHT, max_x, 0, 0)
+            timeline_win = self._create_or_resize_window(
+                "_timeline_win", body_height, timeline_width, HEADER_HEIGHT, 0
+            )
+            detail_win = self._create_or_resize_window(
+                "_detail_win", body_height, detail_width, HEADER_HEIGHT, timeline_width
+            )
+            status_win = self._create_or_resize_window(
+                "_status_win", STATUS_HEIGHT, max_x, HEADER_HEIGHT + body_height, 0
+            )
+        except curses.error:
+            self._clear_window_cache()
+            return None
+
+        return header_win, timeline_win, detail_win, status_win
+
+    def _create_or_resize_window(
+        self, attr: str, height: int, width: int, y: int, x: int
+    ) -> curses.window:
+        win = getattr(self, attr)
+        if win is None:
+            win = curses.newwin(height, width, y, x)
+            setattr(self, attr, win)
+        else:
+            win.resize(height, width)
+            win.mvwin(y, x)
+        return win
+
+    def _clear_window_cache(self) -> None:
+        for attr in ("_header_win", "_timeline_win", "_detail_win", "_status_win"):
+            win = getattr(self, attr)
+            if win is not None:
+                setattr(self, attr, None)
+
+    def _render_resize_hint(self, max_y: int, max_x: int) -> None:
+        self.stdscr.erase()
+        lines = [
+            "Neon cockpit needs more space!",
+            f"Increase terminal to at least {MIN_TOTAL_WIDTH}x{MIN_TOTAL_HEIGHT} characters.",
+            "Resize the window and the UI will auto-refresh.",
+        ]
+        start_y = max((max_y - len(lines)) // 2, 0)
+        for idx, line in enumerate(lines):
+            y = start_y + idx
+            if y >= max_y:
+                break
+            x = max((max_x - len(line)) // 2, 0)
+            try:
+                attr = curses.A_BOLD if idx == 0 else 0
+                available_width = max_x - x
+                if available_width <= 0:
+                    continue
+                self.stdscr.addstr(y, x, line[:available_width], attr)
+            except curses.error:
+                continue
+        self.stdscr.refresh()
 
     def _render_header(self, win: curses.window) -> None:
         win.bkgd(" ", curses.color_pair(self.colors["panel"]))
@@ -119,6 +215,7 @@ class NeonGitApp:
         win.noutrefresh()
 
     def _render_timeline(self, win: curses.window) -> None:
+        win.erase()
         win.box()
         height, width = win.getmaxyx()
         available = height - 2
@@ -135,6 +232,7 @@ class NeonGitApp:
         win.noutrefresh()
 
     def _render_detail(self, win: curses.window) -> None:
+        win.erase()
         win.box()
         height, width = win.getmaxyx()
         content_width = width - 4
