@@ -4,7 +4,7 @@ version = "0.1.0"
 description = "Interactive command line helper for Git workflows"
 requires-python = ">=3.11"
 readme = "README.md"
-license = {text = "MIT"}
+license = "LICENSE.md"
 authors = [{name = "Christopher Hirschauer"}]
 
 [project.scripts]
