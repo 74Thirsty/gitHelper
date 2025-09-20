@@ -17,7 +17,85 @@
 
 An interactive script for managing Git operations, GitHub Pages deployment, and SSH key management. This script helps automate common Git tasks and integrates with GitHub Pages and GitHub Codespaces. It also provides utilities for generating and managing SSH keys.
 
+## Neon Git Cockpit (Terminal UI)
+
+Prefer a neon-lit command center instead of memorising dozens of git commands? Launch the curses-powered **neon git cockpit** and cruise through commits, branches, GitHub issues, and dangerous operations without leaving the terminal.
+
+```text
+┌─────────────────────────────── NEON GIT COCKPIT ───────────────────────────────┐
+│ HEAD: main | Theme: github_dark | View: diff                                   │
+├─────────────────────────┬──────────────────────────────────────────────────────┤
+│ Timeline                │ Diff / GitHub / Danger Zone Panel                   │
+│ ➤ 9f31b1 2025-08-20 ch  │ commit 9f31b1 (Chris)                               │
+│   41a62a 2025-08-19 fea │ + Add neon cockpit + GitHub sync panel              │
+│   3d9c72 2025-08-18 fix │ - Remove brittle shell prompts                      │
+├─────────────────────────┴──────────────────────────────────────────────────────┤
+│ Status: press ? for hotkeys           Undo:1  Redo:0  GitHub: issues ▷ pulls   │
+└────────────────────────────────────────────────────────────────────────────────┘
+```
+
+### Cockpit superpowers
+
+* **Repo browser** – scroll commits with ↑/↓, press `Enter` for rich diffs, `Space` to pop into a temporary branch.
+* **Branch playground** – jump to the branch graph, fast-forward with `F`, or merge after previewing diff stats.
+* **GitHub sync** – hit `G` for live lists of issues, pull requests, and Actions runs (powered by the `gh` CLI). Type `#42` in search to grab a specific PR instantly.
+* **Danger zone** – slam `D` to reveal rollback, skull-certified force push, and stashing prompts (with built-in safety nets).
+* **Interactive rebase** – `R` launches a GUI-like checklist. Use `p/s/f/e/r/x` to mark actions before executing.
+* **Plug-ins** – press `P` for extensibility. A sample “ML-ish commit oracle” plugin analyses your diff and proposes cheeky messages.
+* **Themes & vibes** – configuration lives at `~/.config/neon_git/config.json` with presets for GitHub Dark, Matrix Green, and Neon Cyberpunk.
+
+### Quickstart
+
+```bash
+python3 neogit.py
+```
+
+Key hotkeys are always a `?` away:
+
+| Key | Action |
+| --- | --- |
+| `↑/↓` | Navigate commits |
+| `Space` | Checkout selected commit in a temporary branch |
+| `Tab` | Create a new branch from the highlighted commit |
+| `F` | Fast-forward to the tracked main branch |
+| `G` | Open GitHub panel (requires [`gh`](https://cli.github.com/)) |
+| `R` | Launch interactive rebase planner |
+| `P` | Browse and run plug-ins |
+| `D` | Toggle the danger zone overlay |
+| `/` | Search commits or jump to `#<issue>`/`#<PR>` |
+| `U` / `Shift+U` | Undo / redo git state snapshots |
+| `Q` | Quit the cockpit |
+
+> **GitHub integration:** the cockpit auto-detects your `origin` remote. Make sure `gh auth login` has been run and the CLI is in PATH.
+
+### Plug-in architecture
+
+Drop Python modules inside `neogit_tui/plugins/` that expose a `register()` function returning a `Plugin`. Each plug-in receives the active `GitInterface` instance, so you can build bots for semantic PR labels, AI commit messages, or workflow dashboards.
+
+```python
+from neogit_tui.git import GitInterface
+from neogit_tui.plugins import Plugin
+
+
+def register() -> Plugin:
+    def run(git: GitInterface, app) -> str:
+        summary = git.diff_stat()
+        return f"Diff summary\n{summary}"
+
+    return Plugin(
+        name="Diff Summariser",
+        description="Show a quick diffstat report",
+        run=run,
+    )
+```
+
+Restart the cockpit and your plug-in appears instantly in the `P` menu.
+
 ## Features
+
+### Classic Bash Helper
+
+If you prefer the original guided prompts, the `ghHelper.sh` script is still included.
 
 ### General Git Operations:
 
