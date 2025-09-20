@@ -101,7 +101,11 @@ class NeonGitApp:
         if self.state.danger_mode:
             self._render_danger_overlay()
 
-        self.stdscr.refresh()
+        # All child windows call ``noutrefresh`` so we need to follow up with a
+        # ``doupdate`` to paint them to the terminal. ``refresh`` only updates
+        # the stdscr buffer which left the UI blank.
+        self.stdscr.noutrefresh()
+        curses.doupdate()
 
     def _render_header(self, win: curses.window) -> None:
         win.bkgd(" ", curses.color_pair(self.colors["panel"]))
