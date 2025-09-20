@@ -29,9 +29,12 @@ The CLI surfaces the most common actions behind friendly menus and emoji-powered
 
 * **Repository directory management** – review the active workspace, switch to a different folder, or create it on the fly with automatic validation and recovery when paths are invalid.
 * **Repository overview** – quickly list all Git repositories that live under the configured workspace.
+* **Git repository workflow** – select or initialise projects, stage files, craft commits, and push/pull with upstream tracking prompts.
 * **SSH key concierge** – generate fresh Ed25519 keys, import existing keys into `~/.ssh`, and optionally register them with the local `ssh-agent`, all with detailed success and error messaging.
 
 The interface is implemented as a first-class Python package (`git_helper`) making it easy to install with `pip`, script against, or extend. Rich inline documentation and modular components keep future maintenance approachable.
+
+> Pro tip: type `?` or `help` on any screen to open a contextual help panel summarising available shortcuts and actions.
 
 ## Neon Git Cockpit (Terminal UI)
 
