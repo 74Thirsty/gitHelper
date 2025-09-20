@@ -102,9 +102,10 @@ class NeonGitApp:
             self._render_danger_overlay()
 
         # All child windows call ``noutrefresh`` so we need to follow up with a
-        # ``doupdate`` to paint them to the terminal. ``refresh`` only updates
-        # the stdscr buffer which left the UI blank.
-        self.stdscr.noutrefresh()
+        # ``doupdate`` to paint them to the terminal. Importantly we *do not*
+        # ``noutrefresh`` the ``stdscr`` here. Doing so after erasing it would
+        # mark the whole screen as blank and clobber the child window updates,
+        # resulting in the empty screen reported by users.
         curses.doupdate()
 
     def _render_header(self, win: curses.window) -> None:
