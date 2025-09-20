@@ -1,0 +1,2 @@
+# gitHelper does not require any external Python packages at runtime.
+# This placeholder keeps tools that expect a requirements file happy.
