@@ -56,7 +56,6 @@ HELP_TEXT = [
 
 GITHUB_TABS = ["issues", "pulls", "actions"]
 
-
 HEADER_HEIGHT = 3
 STATUS_HEIGHT = 2
 MIN_BODY_HEIGHT = 8
@@ -64,7 +63,6 @@ MIN_TIMELINE_WIDTH = 30
 MIN_DETAIL_WIDTH = 28
 MIN_TOTAL_HEIGHT = HEADER_HEIGHT + STATUS_HEIGHT + MIN_BODY_HEIGHT
 MIN_TOTAL_WIDTH = MIN_TIMELINE_WIDTH + MIN_DETAIL_WIDTH
-
 
 class NeonGitApp:
     def __init__(self, stdscr: curses.window):
@@ -99,7 +97,7 @@ class NeonGitApp:
 
         header_win, timeline_win, detail_win, status_win = layout
 
-        self.stdscr.erase()
+        # ⚡ FIX: don’t erase stdscr, just render child windows
         self._render_header(header_win)
         self._render_timeline(timeline_win)
         self._render_detail(detail_win)
@@ -110,12 +108,9 @@ class NeonGitApp:
         if self.state.danger_mode:
             self._render_danger_overlay()
 
-        # All child windows call ``noutrefresh`` so we need to follow up with a
-        # ``doupdate`` to paint them to the terminal. Importantly we *do not*
-        # ``noutrefresh`` the ``stdscr`` here. Doing so after erasing it would
-        # mark the whole screen as blank and clobber the child window updates,
-        # resulting in the empty screen reported by users.
+        # ⚡ FIX: actually push all windows to the terminal
         curses.doupdate()
+
 
     def _layout_windows(
         self, max_y: int, max_x: int
@@ -210,7 +205,7 @@ class NeonGitApp:
         win.addstr(1, len(title) + 3, f"| HEAD: {branch}")
         win.addstr(1, len(title) + 22, f"| Theme: {self.theme.name}")
         win.addstr(1, len(title) + 45, f"| View: {self.state.view}")
-        win.noutrefresh()
+        win.refresh()
 
     def _render_timeline(self, win: curses.window) -> None:
         win.erase()
@@ -227,7 +222,7 @@ class NeonGitApp:
             if idx == self.state.selected:
                 attr |= curses.A_REVERSE
             win.addstr(idx - start + 1, 1, line.ljust(width - 2), attr)
-        win.noutrefresh()
+        win.refresh()
 
     def _render_detail(self, win: curses.window) -> None:
         win.erase()
@@ -236,7 +231,7 @@ class NeonGitApp:
         content_width = width - 4
         if not self.state.commits:
             win.addstr(1, 2, "No commits found")
-            win.noutrefresh()
+            win.refresh()
             return
 
         if self.state.view == "diff":
@@ -256,7 +251,7 @@ class NeonGitApp:
             self._render_danger_panel(win, content_width)
         else:
             win.addstr(1, 2, f"Unknown view: {self.state.view}")
-        win.noutrefresh()
+        win.refresh()
 
     def _render_status(self, win: curses.window) -> None:
         win.bkgd(" ", curses.color_pair(self.colors["panel"]))
@@ -265,7 +260,7 @@ class NeonGitApp:
         win.addstr(0, 1, status)
         undo_redo = f"Undo:{len(self.state.undo_stack)} | Redo:{len(self.state.redo_stack)}"
         win.addstr(1, 1, undo_redo, curses.color_pair(self.colors["muted"]))
-        win.noutrefresh()
+        win.refresh()
 
     def _draw_text_block(self, win: curses.window, text: str, width: int) -> None:
         lines = text.splitlines()
@@ -365,7 +360,7 @@ class NeonGitApp:
         win.addstr(1, 2, "Hotkeys", curses.A_BOLD)
         for idx, line in enumerate(HELP_TEXT, start=2):
             win.addstr(idx, 2, line)
-        win.noutrefresh()
+        win.refresh()
 
     def _render_danger_overlay(self) -> None:
         max_y, max_x = self.stdscr.getmaxyx()
@@ -377,7 +372,7 @@ class NeonGitApp:
         win.addstr(1, 2, "!!! DANGER ZONE !!!", curses.A_BOLD)
         win.addstr(3, 2, "Press R to rollback, P to force push, S to stash. Esc closes.")
         win.addstr(5, 2, "Animated skull incoming... ☠")
-        win.noutrefresh()
+        win.refresh()
 
     # -------------------------------------------------------------- data helpers
     def _get_diff(self, commit: Commit) -> str:
