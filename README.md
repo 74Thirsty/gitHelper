@@ -17,6 +17,22 @@
 
 An interactive script for managing Git operations, GitHub Pages deployment, and SSH key management. This script helps automate common Git tasks and integrates with GitHub Pages and GitHub Codespaces. It also provides utilities for generating and managing SSH keys.
 
+## gitHelper control centre (CLI)
+
+Prefer a guided workflow without leaving the shell? Launch the new **gitHelper control centre** for a colourful, modern command-line experience focused on day-to-day automation tasks:
+
+```bash
+python -m git_helper
+```
+
+The CLI surfaces the most common actions behind friendly menus and emoji-powered feedback:
+
+* **Repository directory management** – review the active workspace, switch to a different folder, or create it on the fly with automatic validation and recovery when paths are invalid.
+* **Repository overview** – quickly list all Git repositories that live under the configured workspace.
+* **SSH key concierge** – generate fresh Ed25519 keys, import existing keys into `~/.ssh`, and optionally register them with the local `ssh-agent`, all with detailed success and error messaging.
+
+The interface is implemented as a first-class Python package (`git_helper`) making it easy to install with `pip`, script against, or extend. Rich inline documentation and modular components keep future maintenance approachable.
+
 ## Neon Git Cockpit (Terminal UI)
 
 Prefer a neon-lit command center instead of memorising dozens of git commands? Launch the curses-powered **neon git cockpit** and cruise through commits, branches, GitHub issues, and dangerous operations without leaving the terminal.
@@ -48,6 +64,10 @@ Prefer a neon-lit command center instead of memorising dozens of git commands? L
 
 ```bash
 python3 neogit.py
+```
+
+```bash
+python -m git_helper
 ```
 
 Key hotkeys are always a `?` away:
@@ -112,11 +132,17 @@ If you prefer the original guided prompts, the `ghHelper.sh` script is still inc
 * **Deploy to GitHub Pages**: Deploy changes to a `gh-pages` branch or main branch, for GitHub Pages hosting.
 * **Open a GitHub Codespace**: Create and open a GitHub Codespace for your repository.
 
+### Repository Directory Management:
+
+* **Change workspace location**: Point gitHelper at any directory, create it automatically, and persist the choice across sessions.
+* **Validate paths**: Friendly error handling highlights invalid or inaccessible paths before they cause issues.
+* **Repository overview**: List all detected Git repositories living inside the configured workspace.
+
 ### SSH Key Management:
 
-* **Generate SSH Key**: Generate a new SSH key pair for use with GitHub.
-* **Add SSH Key to Agent**: Add the SSH key to the SSH agent for seamless GitHub authentication.
-* **Add SSH Key to GitHub**: Display the public key and prompt you to add it to your GitHub account via the GitHub web interface.
+* **Generate SSH Key**: Generate a new Ed25519 SSH key pair with optional passphrase and overwrite protection.
+* **Import SSH Key**: Copy existing keys into `~/.ssh`, preserve the matching public key, and optionally register them with `ssh-agent`.
+* **Add SSH Key to Agent**: Add any key to the SSH agent for seamless GitHub authentication with detailed success/error feedback.
 
 ## Prerequisites
 
