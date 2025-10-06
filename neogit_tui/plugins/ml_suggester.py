@@ -49,9 +49,10 @@ def suggest_commit_message(git: GitInterface, _: Any) -> str:
     return "\n".join(report)
 
 
-def register() -> Plugin:
-    return Plugin(
-        name="ML-ish Commit Oracle",
-        description="Generate cheeky commit message suggestions based on current diffs.",
-        run=suggest_commit_message,
+def register(git: GitInterface) -> Plugin:  # [REF] accept active GitInterface during plug-in registration
+    _ = git  # [REF] explicitly acknowledge interface parameter for clarity and future wiring
+    return Plugin(  # [REF] construct plugin instance using canonical dataclass
+        name="ML-ish Commit Oracle",  # [REF] expose descriptive plugin label for UI listing
+        description="Generate cheeky commit message suggestions based on current diffs.",  # [REF] retain user-facing description text
+        run=suggest_commit_message,  # [REF] wire execution callback to suggester routine
     )
