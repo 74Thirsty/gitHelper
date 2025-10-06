@@ -80,8 +80,8 @@ class NeonGitApp:
         if not self.github:
             self.state.github_error = "GitHub CLI unavailable or remote not set."
         self.github_cache: Dict[str, List[GitHubItem] | List[WorkflowRun]] = {}
-        self.plugins: List[Plugin] = load_plugins()
-        self.state.status = f"Loaded {len(commits)} commits. Press ? for help."
+        self.plugins: List[Plugin] = load_plugins(self.git)  # [REF] supply GitInterface to plugin loader per directive
+        self.state.status = f"Loaded {len(commits)} commits. Press ? for help."  # [REF] refresh status after plugin bootstrap aligns with new loader signature
         self._header_win: Optional[curses.window] = None
         self._timeline_win: Optional[curses.window] = None
         self._detail_win: Optional[curses.window] = None
