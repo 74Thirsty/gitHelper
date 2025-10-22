@@ -6,6 +6,8 @@ __all__ = [
     "GitHelperError",
     "DirectoryError",
     "SSHKeyError",
+    "TokenError",
+    "GitHubError",
 ]
 
 
@@ -19,3 +21,11 @@ class DirectoryError(GitHelperError):
 
 class SSHKeyError(GitHelperError):
     """Raised when SSH key management operations fail."""
+
+
+class TokenError(GitHelperError):
+    """Raised when GitHub token operations fail."""
+
+
+class GitHubError(GitHelperError):
+    """Raised when GitHub API operations fail."""
