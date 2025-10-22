@@ -1,12 +1,20 @@
 [project]
 name = "git-helper"
-version = "0.1.0"
-description = "Interactive command line helper for Git workflows"
+version = "0.3.0"
+description = "Modern, context-aware Git and GitHub assistant"
 requires-python = ">=3.11"
 readme = "README.md"
 authors = [{name = "Christopher Hirschauer"}]
 license = "MIT"
 license-files = ["LICENSE.md"]
+dependencies = [
+    "typer>=0.9",
+    "rich>=13.7",
+    "prompt_toolkit>=3.0",
+    "PyGithub>=1.58",
+    "keyring>=24.2",
+    "tomli-w>=1.0",
+]
 
 [tool.setuptools]
 packages = ["git_helper", "neogit_tui"]

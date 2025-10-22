@@ -1,538 +1,300 @@
-"""Interactive command line interface for gitHelper."""
+"""Modern Typer-based CLI for gitHelper."""
 
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Optional
+from typing import Callable, Dict, Optional
+
+import typer
+from rich.console import Console
+from rich.panel import Panel
+from rich.table import Table
 
 from . import __version__
-from .console import (
-    banner,
-    bullet_list,
-    confirm,
-    error,
-    info,
-    prompt,
-    prompt_secret,
-    rule,
-    success,
-    warning,
-)
-from .directory import RepositoryDirectoryManager
-from .errors import DirectoryError, SSHKeyError
-from .git import GitRepository, GitRepositoryError
-from .ssh import SSHKeyManager
+from .core import GitService
+from .core.git import GitServiceError
+from .core.github import GitHubService, GitHubServiceError
+from .ui import CommandPalette, PaletteCommand
+from .utils import ConfigManager, TokenManager, configure_logging
+from .utils.token_manager import TokenManagerError
 
-__all__ = ["GitHelperApp", "main"]
+console = Console()
+app = typer.Typer(help="gitHelper — modern Git and GitHub assistant")
+
+PALETTE_COMMANDS: Dict[str, PaletteCommand] = {
+    "onboard": PaletteCommand("onboard", "Run the guided onboarding experience."),
+    "status": PaletteCommand("status", "Show the smart repository status dashboard."),
+    "scan": PaletteCommand("scan", "Scan the working tree and highlight actionable insights."),
+    "resolve": PaletteCommand("resolve", "Get recommended next steps for repository hygiene."),
+    "codify": PaletteCommand("codify", "Summarise changes into human friendly notes."),
+    "pushall": PaletteCommand("pushall", "Push every local branch with safety checks."),
+    "devlog": PaletteCommand("devlog", "Print Git logs alongside GitHub events."),
+    "diff-ai": PaletteCommand("diff-ai", "Generate AI-friendly diff summaries."),
+    "settings": PaletteCommand("settings", "Review or update gitHelper configuration."),
+}
 
 
-class GitHelperApp:
-    """Simple interactive workflow for managing git helper tasks."""
+def _git_service(path: Path) -> GitService:
+    return GitService(path)
 
-    def __init__(self) -> None:
-        self.repo_manager = RepositoryDirectoryManager()
-        self.ssh_manager = SSHKeyManager()
-        self.active_repository: Optional[Path] = None
 
-    # ----------------------------------------------------------------- utilities
-    def _show_header(self, title: str) -> None:
-        banner(f"gitHelper • {title}")
-        info(f"Version {__version__}")
-        rule()
+def _github_service(token_manager: TokenManager) -> Optional[GitHubService]:
+    try:
+        token = token_manager.require(scopes=["repo"], scope_provider=None)
+    except TokenManagerError as exc:
+        console.print(f"[yellow]{exc}[/yellow]")
+        return None
+    try:
+        return GitHubService(token)
+    except GitHubServiceError as exc:
+        console.print(f"[red]{exc}[/red]")
+        return None
 
-    def _show_current_directory(self) -> None:
-        try:
-            current = self.repo_manager.current_directory()
-        except DirectoryError as exc:
-            warning(str(exc))
-        else:
-            info(f"Active repository directory: {current}")
 
-    def _show_current_repository(self) -> None:
-        if not self.active_repository:
-            info("Active repository: none selected. Use the git workflow menu to choose one.")
-            return
-        repo = GitRepository(self.active_repository)
-        state = "initialised" if repo.is_repository else "not initialised"
-        info(f"Active repository: {self.active_repository} ({state})")
+@app.callback()
+def main(
+    ctx: typer.Context,
+    verbose: bool = typer.Option(False, "--verbose", help="Enable debug logging."),
+    gui: bool = typer.Option(False, "--gui", help="Attempt to launch the GUI fallback."),
+) -> None:
+    """Configure logging and bootstrap shared state."""
 
-    def _show_help(self, topic: str = "main") -> None:
-        topics = {
-            "main": [
-                "Use the numbered options or their shortcuts (e.g. 'ssh') to navigate.",
-                "Configure the workspace directory before working with repositories.",
-                "Visit the Git repository workflow to initialise repos and run commits.",
-                "An active repository is remembered between actions; select it once and reuse it.",
-                "Type '?' or 'help' on any screen to see context-aware tips.",
-            ],
-            "directory": [
-                "Change repository directory updates the stored workspace path.",
-                "Refresh reloads configuration from disk in case it was edited manually.",
-                "Use full paths or paths relative to your home directory when prompted.",
-            ],
-            "ssh": [
-                "Generate creates a new Ed25519 key pair inside ~/.ssh by default.",
-                "Import copies an existing private key into ~/.ssh and can add it to ssh-agent.",
-                "Add to agent allows any key to be loaded into the current ssh-agent session.",
-            ],
-            "repository": [
-                "Select repository chooses which project subsequent Git actions will use.",
-                "Initialise can create a brand new repository anywhere on disk and optionally add a remote.",
-                "Stage all runs 'git add --all' for the active repository.",
-                "Commit prompts for a message and performs 'git commit'.",
-                "Push and Pull wrap the respective Git commands and offer sensible defaults.",
-                "Configure remote adds or updates the URL for remotes such as 'origin'.",
-            ],
-        }
-        self._show_header("Help")
-        bullet_list(topics.get(topic, topics["main"]))
-        info("Press Enter to return to the previous menu.")
-        input()
-
-    # -------------------------------------------------------------- main menus
-    def run(self) -> None:
-        """Launch the application loop."""
-
-        while True:
-            self._show_header("Control Centre")
-            self._show_current_directory()
-            self._show_current_repository()
-            info("Choose an operation:")
-            bullet_list(
-                [
-                    "[1] Manage repository directory",
-                    "[2] View repositories in current directory",
-                    "[3] SSH key management",
-                    "[4] Git repository workflow",
-                    "[Q] Quit",
-                ]
-            )
-            choice = prompt("Select an option").strip().lower()
-            if choice in {"1", "directory", "d"}:
-                self._directory_menu()
-            elif choice in {"2", "repos", "r"}:
-                self._list_repositories()
-            elif choice in {"3", "ssh"}:
-                self._ssh_menu()
-            elif choice in {"4", "git", "g"}:
-                self._repository_menu()
-            elif choice in {"?", "h", "help"}:
-                self._show_help("main")
-            elif choice in {"q", "quit"}:
-                success("Thanks for using gitHelper. Goodbye!")
-                return
-            else:
-                warning("Unknown option. Please select one of the listed commands.")
-
-    # ----------------------------------------------------------- directory menu
-    def _directory_menu(self) -> None:
-        while True:
-            self._show_header("Repository directory")
-            self._show_current_directory()
-            bullet_list(
-                [
-                    "[1] Change repository directory",
-                    "[2] Refresh directory configuration",
-                    "[B] Back to main menu",
-                ]
-            )
-            choice = prompt("Select an option").strip().lower()
-            if choice in {"1", "change", "c"}:
-                self._change_directory()
-            elif choice in {"2", "refresh"}:
-                self.repo_manager.refresh()
-                success("Configuration reloaded.")
-            elif choice in {"?", "h", "help"}:
-                self._show_help("directory")
-            elif choice in {"b", "back"}:
-                return
-            else:
-                warning("Unknown option. Please select one of the listed commands.")
-
-    def _change_directory(self) -> None:
-        new_dir = prompt("Enter the new repository directory").strip()
-        if not new_dir:
-            warning("No directory provided; nothing changed.")
-            return
-        path = Path(new_dir).expanduser()
-        create = False
-        if not path.exists():
-            create = confirm(
-                f"{path} does not exist. Create it now?",
-                default=True,
-            )
-        try:
-            updated = self.repo_manager.change_directory(path, create=create)
-        except DirectoryError as exc:
-            error(str(exc))
-        else:
-            success(f"Repository directory updated to {updated}")
-
-    def _list_repositories(self) -> None:
-        try:
-            repositories = self.repo_manager.list_repositories()
-        except DirectoryError as exc:
-            error(str(exc))
-            return
-        if not repositories:
-            warning("No Git repositories found in the configured directory.")
-            return
-        success(f"Found {len(repositories)} repository(ies):")
-        bullet_list([repo.name for repo in repositories])
-
-    # -------------------------------------------------------------- SSH actions
-    def _ssh_menu(self) -> None:
-        while True:
-            self._show_header("SSH key management")
-            bullet_list(
-                [
-                    "[1] Generate new SSH key",
-                    "[2] Import existing SSH key",
-                    "[3] Add SSH key to agent",
-                    "[B] Back to main menu",
-                ]
-            )
-            choice = prompt("Select an option").strip().lower()
-            if choice in {"1", "generate", "g"}:
-                self._generate_key()
-            elif choice in {"2", "import", "i"}:
-                self._import_key()
-            elif choice in {"3", "agent", "a"}:
-                self._add_key_to_agent()
-            elif choice in {"?", "h", "help"}:
-                self._show_help("ssh")
-            elif choice in {"b", "back"}:
-                return
-            else:
-                warning("Unknown option. Please select one of the listed commands.")
-
-    def _generate_key(self) -> None:
-        email = prompt("Email address for the SSH key").strip()
-        key_name = prompt("Filename for the key", default="id_ed25519").strip() or "id_ed25519"
-        passphrase = prompt_secret("Passphrase (leave empty for none)")
-        overwrite = False
-        target = self.ssh_manager.ssh_dir / key_name
-        if target.exists():
-            overwrite = confirm(
-                f"{target} already exists. Replace it?",
-                default=False,
-            )
-        try:
-            private_key = self.ssh_manager.generate_key(
-                email=email,
-                key_name=key_name,
-                passphrase=passphrase,
-                overwrite=overwrite,
-            )
-        except SSHKeyError as exc:
-            error(str(exc))
-            return
-        success(f"Generated SSH key: {private_key}")
-        public_key = private_key.with_suffix(".pub")
-        if public_key.exists():
-            info(f"Public key saved at {public_key}")
-            info("Add this key to your Git hosting provider as needed.")
-
-    def _import_key(self) -> None:
-        source = prompt("Path to the existing private key").strip()
-        if not source:
-            warning("No key path supplied.")
-            return
-        name = prompt("Save the key as", default=Path(source).name).strip()
-        add = confirm("Add the key to the SSH agent after importing?", default=True)
-        try:
-            destination = self.ssh_manager.import_key(source, name=name or None, add_to_agent=add)
-        except SSHKeyError as exc:
-            error(str(exc))
-            return
-        success(f"Key imported to {destination}")
-        if add:
-            success("Key added to ssh-agent.")
-
-    def _add_key_to_agent(self) -> None:
-        key_path = prompt("Path to the private key to add to ssh-agent").strip()
-        if not key_path:
-            warning("No key path supplied.")
-            return
-        try:
-            output = self.ssh_manager.add_to_agent(key_path)
-        except SSHKeyError as exc:
-            error(str(exc))
-        else:
-            success("Key added to ssh-agent.")
-            if output:
-                info(output)
-
-    # ------------------------------------------------------------- git actions
-    def _require_repository(self, *, allow_uninitialised: bool = False) -> GitRepository | None:
-        if not self.active_repository:
-            warning("No active repository selected. Choose 'Select repository' first.")
-            return None
-        repo = GitRepository(self.active_repository)
-        if not repo.exists:
-            warning(f"{self.active_repository} does not exist. Initialise it first.")
-            return None
-        if not allow_uninitialised and not repo.is_repository:
-            warning(
-                f"{self.active_repository} is not a Git repository. Choose 'Initialise new repository' to set it up."
-            )
-            return None
-        return repo
-
-    def _repository_menu(self) -> None:
-        while True:
-            self._show_header("Git repository workflow")
-            self._show_current_repository()
-            bullet_list(
-                [
-                    "[1] Select repository",
-                    "[2] Initialise new repository",
-                    "[3] Show status",
-                    "[4] Stage all changes",
-                    "[5] Commit staged changes",
-                    "[6] Push to remote",
-                    "[7] Pull from remote",
-                    "[8] Configure remote",
-                    "[B] Back to main menu",
-                ]
-            )
-            choice = prompt("Select an option").strip().lower()
-            if choice in {"1", "select", "s"}:
-                self._select_repository()
-            elif choice in {"2", "init", "i"}:
-                self._initialise_repository()
-            elif choice in {"3", "status"}:
-                self._show_status()
-            elif choice in {"4", "stage", "a"}:
-                self._stage_all()
-            elif choice in {"5", "commit", "c"}:
-                self._commit_changes()
-            elif choice in {"6", "push", "p"}:
-                self._push_changes()
-            elif choice in {"7", "pull", "l"}:
-                self._pull_changes()
-            elif choice in {"8", "remote", "r"}:
-                self._configure_remote()
-            elif choice in {"?", "h", "help"}:
-                self._show_help("repository")
-            elif choice in {"b", "back"}:
-                return
-            else:
-                warning("Unknown option. Please select one of the listed commands.")
-
-    def _select_repository(self) -> None:
-        try:
-            repositories = self.repo_manager.list_repositories()
-        except DirectoryError as exc:
-            error(str(exc))
-            repositories = []
-
-        if repositories:
-            info("Repositories discovered in the configured directory:")
-            items = [f"[{idx + 1}] {repo}" for idx, repo in enumerate(repositories)]
-            bullet_list(items)
-            default = "1" if len(repositories) == 1 else ""
-            response = prompt(
-                "Enter the number of the repository to use or provide a custom path",
-                default=default,
-            )
-        else:
-            warning("No repositories detected. Enter a path manually.")
-            response = prompt("Repository path")
-
-        if not response.strip():
-            warning("No repository selected.")
-            return
-
-        selected_path: Path
-        if response.isdigit() and repositories:
-            index = int(response) - 1
-            if not 0 <= index < len(repositories):
-                warning("Selection out of range.")
-                return
-            selected_path = repositories[index]
-        else:
-            selected_path = Path(response).expanduser()
-
-        self.active_repository = selected_path
-        repo = GitRepository(selected_path)
-        if repo.is_repository:
-            success(f"Active repository set to {selected_path}")
-        else:
-            warning(
-                f"{selected_path} is not initialised yet. Choose 'Initialise new repository' before running Git commands."
-            )
-
-    def _initialise_repository(self) -> None:
-        default_path: str | None = None
-        if self.active_repository:
-            default_path = str(self.active_repository)
-        else:
-            try:
-                default_path = str(self.repo_manager.current_directory())
-            except DirectoryError:
-                default_path = None
-
-        target_input = prompt("Directory to initialise", default=default_path).strip()
-        if not target_input:
-            warning("No directory supplied; cancelled initialisation.")
-            return
-
-        target = Path(target_input).expanduser()
-        repo = GitRepository(target)
-        if target.exists() and not target.is_dir():
-            error(f"{target} exists but is not a directory.")
-            return
-        if not target.exists():
-            create = confirm(f"{target} does not exist. Create it?", default=True)
-            if not create:
-                warning("Initialisation aborted.")
-                return
-
-        default_branch = prompt("Initial branch name", default="main").strip()
-        try:
-            output = repo.init(default_branch=default_branch or None)
-        except GitRepositoryError as exc:
-            error(str(exc))
-            return
-
-        self.active_repository = target
-        success(f"Initialised Git repository in {target}")
-        if output:
-            info(output)
-
-        remote_url = prompt("Remote URL to add (leave empty to skip)").strip()
-        if remote_url:
-            try:
-                remote_output = repo.set_remote("origin", remote_url, replace=True)
-            except GitRepositoryError as exc:
-                error(str(exc))
-            else:
-                info(remote_output or "Remote 'origin' updated.")
-
-    def _show_status(self) -> None:
-        repo = self._require_repository()
-        if not repo:
-            return
-        try:
-            output = repo.status()
-        except GitRepositoryError as exc:
-            error(str(exc))
-            return
-        info("Repository status:")
-        if output:
-            for line in output.splitlines():
-                print(line)
-
-    def _stage_all(self) -> None:
-        repo = self._require_repository()
-        if not repo:
-            return
-        try:
-            repo.stage_all()
-        except GitRepositoryError as exc:
-            error(str(exc))
-        else:
-            success("All changes staged.")
-
-    def _commit_changes(self) -> None:
-        repo = self._require_repository()
-        if not repo:
-            return
-        message = prompt("Commit message").strip()
-        if not message:
-            warning("Commit message is required.")
-            return
-        try:
-            output = repo.commit(message)
-        except GitRepositoryError as exc:
-            error(str(exc))
-        else:
-            success("Commit created successfully.")
-            if output:
-                info(output)
-
-    def _push_changes(self) -> None:
-        repo = self._require_repository()
-        if not repo:
-            return
-        default_remote = "origin"
-        current_branch = repo.current_branch()
-        remote = prompt("Remote to push to", default=default_remote).strip() or default_remote
-        branch = prompt("Branch to push", default=current_branch or "").strip()
-        if not branch:
-            warning("Branch name is required to push.")
-            return
-        tracking = repo.tracking_branch()
-        set_upstream_default = tracking is None
-        if set_upstream_default:
-            info("No upstream configured for this branch. An upstream will be set during push.")
-        set_upstream = confirm(
-            "Set upstream while pushing?",
-            default=set_upstream_default,
+    configure_logging(verbose)
+    ctx.obj = {
+        "config": ConfigManager(),
+        "token_manager": TokenManager(),
+    }
+    if gui:
+        console.print(
+            "[yellow]GUI mode is not yet implemented. Falling back to the enhanced CLI experience.[/yellow]"
         )
+    console.print(f"[bold cyan]gitHelper[/bold cyan] v{__version__}")
+
+
+@app.command()
+def palette(ctx: typer.Context) -> None:
+    """Launch the fuzzy command palette."""
+
+    palette = CommandPalette(PALETTE_COMMANDS)
+    console.print(Panel(palette.format_help(), title="Command Palette"))
+    selection = palette.choose()
+    if not selection:
+        console.print("[yellow]No command selected.[/yellow]")
+        return
+    console.print(f"[green]Running[/green] [bold]{selection.name}[/bold]…")
+    handler = COMMAND_HANDLERS.get(selection.name)
+    if handler is None:
+        console.print(f"[red]No handler registered for {selection.name}.[/red]")
+        return
+    handler(ctx)
+
+def onboard_command(ctx: typer.Context) -> None:
+    """Interactive onboarding to configure tokens and preferences."""
+
+    config: ConfigManager = ctx.obj["config"]
+    token_manager: TokenManager = ctx.obj["token_manager"]
+    console.print(Panel("Let's configure gitHelper for your GitHub workflow!", title="Onboarding"))
+    default_org = typer.prompt("Default GitHub organisation", default=config.get("github", "default_org", ""))
+    editor = typer.prompt("Preferred editor command", default=config.get("editor", "command"))
+    theme = typer.prompt("Theme (system/light/dark)", default=config.get("ui", "theme", "system"))
+    use_gui = typer.confirm("Enable GUI fallback when available?", default=config.get("ui", "use_gui", False))
+    config.set("github", "default_org", default_org)
+    config.set("editor", "command", editor)
+    config.set("ui", "theme", theme)
+    config.set("ui", "use_gui", use_gui)
+
+    if typer.confirm("Would you like to store a GitHub Personal Access Token now?", default=True):
+        token = typer.prompt("Enter GitHub token", hide_input=True)
         try:
-            output = repo.push(remote, branch, set_upstream=set_upstream)
-        except GitRepositoryError as exc:
-            error(str(exc))
+            token_manager.save(token)
+        except TokenManagerError as exc:
+            console.print(f"[red]{exc}[/red]")
         else:
-            success("Push completed successfully.")
-            if output:
-                info(output)
+            service = _github_service(token_manager)
+            if service:
+                try:
+                    login = service.current_user()
+                    console.print(f"[green]Authenticated as[/green] [bold]{login}[/bold]")
+                except GitHubServiceError as exc:  # pragma: no cover - network behaviour
+                    console.print(f"[yellow]{exc}[/yellow]")
+            console.print("[green]Token stored securely in system keyring.[/green]")
+    console.print(Panel(config.profile_summary(), title="Configuration saved"))
 
-    def _pull_changes(self) -> None:
-        repo = self._require_repository()
-        if not repo:
-            return
-        default_remote = "origin"
-        current_branch = repo.current_branch()
-        if not current_branch:
-            warning("Cannot pull while in a detached HEAD state.")
-            return
-        remote = prompt("Remote to pull from", default=default_remote).strip() or default_remote
-        branch = prompt("Branch to pull", default=current_branch).strip()
-        if not branch:
-            warning("Branch name is required to pull.")
-            return
+
+def status_command(
+    ctx: typer.Context,
+    path: Path = typer.Option(Path.cwd(), "--path", exists=True, file_okay=False, help="Repository path."),
+) -> None:
+    """Show a dashboard summarising repository status."""
+
+    service = _git_service(path)
+    try:
+        snapshot = service.status()
+    except GitServiceError as exc:
+        console.print(f"[red]{exc}[/red]")
+        raise typer.Exit(1)
+    table = Table(title="Repository status", box=None)
+    table.add_column("Metric", justify="left")
+    table.add_column("Value", justify="right")
+    table.add_row("Branch", snapshot.branch)
+    table.add_row("Detached", "yes" if snapshot.detached else "no")
+    table.add_row("Ahead", str(snapshot.ahead))
+    table.add_row("Behind", str(snapshot.behind))
+    table.add_row("Staged", str(snapshot.staged))
+    table.add_row("Unstaged", str(snapshot.unstaged))
+    table.add_row("Untracked", str(snapshot.untracked))
+    table.add_row("Stashes", str(snapshot.stashes))
+    table.add_row("Clean", "yes" if snapshot.clean else "no")
+    console.print(Panel(table, title=str(path)))
+
+
+def scan_command(
+    ctx: typer.Context,
+    path: Path = typer.Option(Path.cwd(), "--path", exists=True, file_okay=False),
+) -> None:
+    """Scan the repository and surface actionable insights."""
+
+    service = _git_service(path)
+    try:
+        data = service.scan()
+    except GitServiceError as exc:
+        console.print(f"[red]{exc}[/red]")
+        raise typer.Exit(1)
+    console.print(Panel(f"Branches: {', '.join(data['branches']) or 'none'}", title="Local branches"))
+    console.print(Panel(f"Remotes: {', '.join(data['remotes']) or 'none'}", title="Remotes"))
+    console.print(Panel(f"Stashes: {len(data['stashes'])}", title="Stashes"))
+    if data["pending_commits"]:
+        console.print(Panel("\n".join(data["pending_commits"]), title="Commits not on origin"))
+    recommendations = service.recommend_resolution_actions()
+    console.print(Panel("\n".join(recommendations), title="Suggested actions"))
+
+
+def resolve_command(
+    ctx: typer.Context,
+    path: Path = typer.Option(Path.cwd(), "--path", exists=True, file_okay=False),
+) -> None:
+    """Offer resolution strategies based on repository state."""
+
+    service = _git_service(path)
+    recommendations = service.recommend_resolution_actions()
+    console.print(Panel("\n".join(recommendations), title="Resolution guide"))
+
+
+def codify_command(
+    ctx: typer.Context,
+    path: Path = typer.Option(Path.cwd(), "--path", exists=True, file_okay=False),
+) -> None:
+    """Summarise staged and unstaged changes for commit messaging."""
+
+    service = _git_service(path)
+    summary = service.summarize_changes()
+    console.print(Panel(summary, title="Change summary"))
+
+
+def pushall_command(
+    ctx: typer.Context,
+    path: Path = typer.Option(Path.cwd(), "--path", exists=True, file_okay=False),
+    remote: str = typer.Option("origin", "--remote", help="Remote to push to."),
+    execute: bool = typer.Option(False, "--execute", help="Actually run the push."),
+    force: bool = typer.Option(False, "--force", help="Use --force-with-lease when pushing."),
+) -> None:
+    """Push every local branch to the specified remote."""
+
+    service = _git_service(path)
+    console.print(Panel("\n".join(service.branches_with_upstream()), title="Branch -> upstream mapping"))
+    if not execute:
+        console.print(
+            "[yellow]Dry run only. Re-run with --execute to push branches. --force adds --force-with-lease.[/yellow]"
+        )
+        return
+    results = service.auto_push_all(remote=remote, force=force)
+    lines = []
+    for result in results:
+        status_text = "ok" if result.returncode == 0 else f"failed ({result.stderr.strip()})"
+        lines.append(f"git {' '.join(result.args)} -> {status_text}")  # type: ignore[arg-type]
+    console.print(Panel("\n".join(lines) or "No branches to push.", title="Push summary"))
+
+
+def devlog_command(
+    ctx: typer.Context,
+    path: Path = typer.Option(Path.cwd(), "--path", exists=True, file_okay=False),
+    limit: int = typer.Option(5, "--limit", help="Number of commits/events to show."),
+) -> None:
+    """Display Git history with optional GitHub events."""
+
+    service = _git_service(path)
+    token_manager: TokenManager = ctx.obj["token_manager"]
+    events: list[str] = []
+    github = _github_service(token_manager)
+    if github and typer.confirm("Fetch GitHub events as well?", default=False):
+        config: ConfigManager = ctx.obj["config"]
+        default_org = config.get("github", "default_org", "")
+        repo_hint = typer.prompt("Repository (owner/name)", default=default_org)
         try:
-            output = repo.pull(remote, branch)
-        except GitRepositoryError as exc:
-            error(str(exc))
-        else:
-            success("Pull completed successfully.")
-            if output:
-                info(output)
-
-    def _configure_remote(self) -> None:
-        repo = self._require_repository()
-        if not repo:
-            return
-        remote_name = prompt("Remote name", default="origin").strip() or "origin"
-        remote_url = prompt("Remote URL").strip()
-        if not remote_url:
-            warning("Remote URL is required.")
-            return
-        replace = repo.remote_exists(remote_name)
-        if replace:
-            replace = confirm(
-                f"Remote '{remote_name}' already exists. Update its URL?",
-                default=True,
-            )
-            if not replace:
-                warning("Remote update cancelled.")
-                return
-        try:
-            output = repo.set_remote(remote_name, remote_url, replace=True)
-        except GitRepositoryError as exc:
-            error(str(exc))
-        else:
-            success(f"Remote '{remote_name}' configured.")
-            if output:
-                info(output)
+            events = github.recent_events(repo_hint, limit=limit)
+        except GitHubServiceError as exc:  # pragma: no cover - network
+            console.print(f"[yellow]{exc}[/yellow]")
+    console.print(Panel(service.format_devlog(limit=limit, github_events=events), title="Dev log"))
 
 
-def main() -> None:
-    """Entry point used by ``python -m git_helper``."""
+def mock_command(ctx: typer.Context) -> None:
+    """Run gitHelper in dry-run mode for experimentation."""
 
-    app = GitHelperApp()
-    app.run()
+    console.print(
+        Panel(
+            "Mock mode enables safe experimentation. All Git operations stay in dry-run preview until you re-run without --mock.",
+            title="Mock mode",
+        )
+    )
+
+
+def diff_ai_command(
+    ctx: typer.Context,
+    path: Path = typer.Option(Path.cwd(), "--path", exists=True, file_okay=False),
+) -> None:
+    """Produce AI-ready summaries of recent diffs."""
+
+    service = _git_service(path)
+    summary = service.summarize_changes()
+    console.print(Panel(summary, title="AI-ready diff summary"))
+    console.print(
+        "[dim]Use this summary as context for LLMs such as OpenAI GPT models. Ensure secrets are removed before sharing.[/dim]"
+    )
+
+
+def settings_command(ctx: typer.Context) -> None:
+    """Show current configuration and token status."""
+
+    config: ConfigManager = ctx.obj["config"]
+    token_manager: TokenManager = ctx.obj["token_manager"]
+    github = _github_service(token_manager)
+    scope_provider = github.ensure_scopes if github else None
+    description = token_manager.describe(scope_provider=scope_provider) if scope_provider else token_manager.describe()
+    console.print(Panel(config.profile_summary(), title="Profile"))
+    console.print(Panel(description, title="GitHub token"))
+
+
+def _register_commands() -> Dict[str, Callable[[typer.Context], None]]:
+    command_map: Dict[str, Callable[[typer.Context], None]] = {}
+    command_map["onboard"] = app.command()(onboard_command)
+    command_map["status"] = app.command()(status_command)
+    command_map["scan"] = app.command()(scan_command)
+    command_map["resolve"] = app.command()(resolve_command)
+    command_map["codify"] = app.command()(codify_command)
+    command_map["pushall"] = app.command()(pushall_command)
+    command_map["devlog"] = app.command(name="devlog")(devlog_command)
+    command_map["mock"] = app.command()(mock_command)
+    command_map["diff-ai"] = app.command(name="diff-ai")(diff_ai_command)
+    command_map["settings"] = app.command()(settings_command)
+    return command_map
+
+
+COMMAND_HANDLERS = _register_commands()
+
+
+def main_entry() -> None:
+    app()
+
+
+def main() -> None:  # pragma: no cover - entry point
+    main_entry()
