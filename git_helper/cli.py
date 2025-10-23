@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Callable, Dict, Optional
+from typing import Any, Callable, Dict, Optional
 
 import typer
 from rich.console import Console
@@ -43,6 +43,48 @@ def _git_service(path: Path) -> GitService:
     return GitService(path)
 
 
+def _prompt_for_repo_path(default: Path) -> Path:
+    """Ask the user which repository directory to operate on."""
+
+    current = default
+    while True:
+        response = typer.prompt("Repository path", default=str(current))
+        candidate = Path(response).expanduser().resolve()
+        if candidate.is_dir():
+            return candidate
+        console.print(f"[red]{candidate} is not a valid directory.[/red]")
+        current = candidate
+
+
+def _resolve_repo_path(ctx: typer.Context, explicit: Optional[Path]) -> Path:
+    """Determine the repository path, preferring explicit values."""
+
+    if ctx.obj is None:
+        ctx.obj = {}
+    if explicit is not None:
+        repo_path = explicit.resolve()
+    else:
+        repo_path = ctx.obj.get("repo_path") if ctx.obj else None
+        if repo_path is None:
+            repo_path = Path.cwd()
+        repo_path = Path(repo_path).resolve()
+    ctx.obj.setdefault("repo_path", repo_path)
+    ctx.obj["repo_path"] = repo_path
+    return repo_path
+
+
+def _palette_repo_command(
+    handler: Callable[..., None], **kwargs: Any
+) -> Callable[[typer.Context], None]:
+    """Wrap handlers that require a repository path for palette usage."""
+
+    def runner(ctx: typer.Context) -> None:
+        repo_path = _resolve_repo_path(ctx, None)
+        handler(ctx, repo_path, **kwargs)
+
+    return runner
+
+
 def _github_service(token_manager: TokenManager) -> Optional[GitHubService]:
     try:
         token = token_manager.require(scopes=["repo"], scope_provider=None)
@@ -69,6 +111,7 @@ def main(
     ctx.obj = {
         "config": ConfigManager(),
         "token_manager": TokenManager(),
+        "repo_path": Path.cwd().resolve(),
     }
     if theme and not gui:
         console.print("[yellow]Theme selection only applies when launching the GUI.[/yellow]")
@@ -106,6 +149,7 @@ def palette(ctx: typer.Context) -> None:
         return
     handler(ctx)
 
+@app.command(name="onboard")
 def onboard_command(ctx: typer.Context) -> None:
     """Interactive onboarding to configure tokens and preferences."""
 
@@ -139,12 +183,7 @@ def onboard_command(ctx: typer.Context) -> None:
     console.print(Panel(config.profile_summary(), title="Configuration saved"))
 
 
-def status_command(
-    ctx: typer.Context,
-    path: Path = typer.Option(Path.cwd(), "--path", exists=True, file_okay=False, help="Repository path."),
-) -> None:
-    """Show a dashboard summarising repository status."""
-
+def _status(ctx: typer.Context, path: Path) -> None:
     service = _git_service(path)
     try:
         snapshot = service.status()
@@ -166,12 +205,7 @@ def status_command(
     console.print(Panel(table, title=str(path)))
 
 
-def scan_command(
-    ctx: typer.Context,
-    path: Path = typer.Option(Path.cwd(), "--path", exists=True, file_okay=False),
-) -> None:
-    """Scan the repository and surface actionable insights."""
-
+def _scan(ctx: typer.Context, path: Path) -> None:
     service = _git_service(path)
     try:
         data = service.scan()
@@ -187,37 +221,19 @@ def scan_command(
     console.print(Panel("\n".join(recommendations), title="Suggested actions"))
 
 
-def resolve_command(
-    ctx: typer.Context,
-    path: Path = typer.Option(Path.cwd(), "--path", exists=True, file_okay=False),
-) -> None:
-    """Offer resolution strategies based on repository state."""
-
+def _resolve(ctx: typer.Context, path: Path) -> None:
     service = _git_service(path)
     recommendations = service.recommend_resolution_actions()
     console.print(Panel("\n".join(recommendations), title="Resolution guide"))
 
 
-def codify_command(
-    ctx: typer.Context,
-    path: Path = typer.Option(Path.cwd(), "--path", exists=True, file_okay=False),
-) -> None:
-    """Summarise staged and unstaged changes for commit messaging."""
-
+def _codify(ctx: typer.Context, path: Path) -> None:
     service = _git_service(path)
     summary = service.summarize_changes()
     console.print(Panel(summary, title="Change summary"))
 
 
-def pushall_command(
-    ctx: typer.Context,
-    path: Path = typer.Option(Path.cwd(), "--path", exists=True, file_okay=False),
-    remote: str = typer.Option("origin", "--remote", help="Remote to push to."),
-    execute: bool = typer.Option(False, "--execute", help="Actually run the push."),
-    force: bool = typer.Option(False, "--force", help="Use --force-with-lease when pushing."),
-) -> None:
-    """Push every local branch to the specified remote."""
-
+def _pushall(ctx: typer.Context, path: Path, remote: str, execute: bool, force: bool) -> None:
     service = _git_service(path)
     console.print(Panel("\n".join(service.branches_with_upstream()), title="Branch -> upstream mapping"))
     if not execute:
@@ -233,13 +249,7 @@ def pushall_command(
     console.print(Panel("\n".join(lines) or "No branches to push.", title="Push summary"))
 
 
-def devlog_command(
-    ctx: typer.Context,
-    path: Path = typer.Option(Path.cwd(), "--path", exists=True, file_okay=False),
-    limit: int = typer.Option(5, "--limit", help="Number of commits/events to show."),
-) -> None:
-    """Display Git history with optional GitHub events."""
-
+def _devlog(ctx: typer.Context, path: Path, limit: int) -> None:
     service = _git_service(path)
     token_manager: TokenManager = ctx.obj["token_manager"]
     events: list[str] = []
@@ -255,6 +265,93 @@ def devlog_command(
     console.print(Panel(service.format_devlog(limit=limit, github_events=events), title="Dev log"))
 
 
+def _diff_ai(ctx: typer.Context, path: Path) -> None:
+    service = _git_service(path)
+    summary = service.summarize_changes()
+    console.print(Panel(summary, title="AI-ready diff summary"))
+    console.print(
+        "[dim]Use this summary as context for LLMs such as OpenAI GPT models. Ensure secrets are removed before sharing.[/dim]"
+    )
+
+
+@app.command(name="status")
+def status_command(
+    ctx: typer.Context,
+    path: Optional[Path] = typer.Option(
+        None,
+        "--path",
+        exists=True,
+        file_okay=False,
+        path_type=Path,
+        help="Repository path.",
+    ),
+) -> None:
+    """Show a dashboard summarising repository status."""
+
+    repo_path = _resolve_repo_path(ctx, path)
+    _status(ctx, repo_path)
+
+
+@app.command(name="scan")
+def scan_command(
+    ctx: typer.Context,
+    path: Optional[Path] = typer.Option(None, "--path", exists=True, file_okay=False, path_type=Path),
+) -> None:
+    """Scan the repository and surface actionable insights."""
+
+    repo_path = _resolve_repo_path(ctx, path)
+    _scan(ctx, repo_path)
+
+
+@app.command(name="resolve")
+def resolve_command(
+    ctx: typer.Context,
+    path: Optional[Path] = typer.Option(None, "--path", exists=True, file_okay=False, path_type=Path),
+) -> None:
+    """Offer resolution strategies based on repository state."""
+
+    repo_path = _resolve_repo_path(ctx, path)
+    _resolve(ctx, repo_path)
+
+
+@app.command(name="codify")
+def codify_command(
+    ctx: typer.Context,
+    path: Optional[Path] = typer.Option(None, "--path", exists=True, file_okay=False, path_type=Path),
+) -> None:
+    """Summarise staged and unstaged changes for commit messaging."""
+
+    repo_path = _resolve_repo_path(ctx, path)
+    _codify(ctx, repo_path)
+
+
+@app.command(name="pushall")
+def pushall_command(
+    ctx: typer.Context,
+    path: Optional[Path] = typer.Option(None, "--path", exists=True, file_okay=False, path_type=Path),
+    remote: str = typer.Option("origin", "--remote", help="Remote to push to."),
+    execute: bool = typer.Option(False, "--execute", help="Actually run the push."),
+    force: bool = typer.Option(False, "--force", help="Use --force-with-lease when pushing."),
+) -> None:
+    """Push every local branch to the specified remote."""
+
+    repo_path = _resolve_repo_path(ctx, path)
+    _pushall(ctx, repo_path, remote=remote, execute=execute, force=force)
+
+
+@app.command(name="devlog")
+def devlog_command(
+    ctx: typer.Context,
+    path: Optional[Path] = typer.Option(None, "--path", exists=True, file_okay=False, path_type=Path),
+    limit: int = typer.Option(5, "--limit", help="Number of commits/events to show."),
+) -> None:
+    """Display Git history with optional GitHub events."""
+
+    repo_path = _resolve_repo_path(ctx, path)
+    _devlog(ctx, repo_path, limit=limit)
+
+
+@app.command(name="mock")
 def mock_command(ctx: typer.Context) -> None:
     """Run gitHelper in dry-run mode for experimentation."""
 
@@ -266,20 +363,18 @@ def mock_command(ctx: typer.Context) -> None:
     )
 
 
+@app.command(name="diff-ai")
 def diff_ai_command(
     ctx: typer.Context,
-    path: Path = typer.Option(Path.cwd(), "--path", exists=True, file_okay=False),
+    path: Optional[Path] = typer.Option(None, "--path", exists=True, file_okay=False, path_type=Path),
 ) -> None:
     """Produce AI-ready summaries of recent diffs."""
 
-    service = _git_service(path)
-    summary = service.summarize_changes()
-    console.print(Panel(summary, title="AI-ready diff summary"))
-    console.print(
-        "[dim]Use this summary as context for LLMs such as OpenAI GPT models. Ensure secrets are removed before sharing.[/dim]"
-    )
+    repo_path = _resolve_repo_path(ctx, path)
+    _diff_ai(ctx, repo_path)
 
 
+@app.command(name="settings")
 def settings_command(ctx: typer.Context) -> None:
     """Show current configuration and token status."""
 
@@ -291,19 +386,20 @@ def settings_command(ctx: typer.Context) -> None:
     console.print(Panel(config.profile_summary(), title="Profile"))
     console.print(Panel(description, title="GitHub token"))
 
-
 def _register_commands() -> Dict[str, Callable[[typer.Context], None]]:
     command_map: Dict[str, Callable[[typer.Context], None]] = {}
-    command_map["onboard"] = app.command()(onboard_command)
-    command_map["status"] = app.command()(status_command)
-    command_map["scan"] = app.command()(scan_command)
-    command_map["resolve"] = app.command()(resolve_command)
-    command_map["codify"] = app.command()(codify_command)
-    command_map["pushall"] = app.command()(pushall_command)
-    command_map["devlog"] = app.command(name="devlog")(devlog_command)
-    command_map["mock"] = app.command()(mock_command)
-    command_map["diff-ai"] = app.command(name="diff-ai")(diff_ai_command)
-    command_map["settings"] = app.command()(settings_command)
+    command_map["onboard"] = onboard_command
+    command_map["status"] = _palette_repo_command(_status)
+    command_map["scan"] = _palette_repo_command(_scan)
+    command_map["resolve"] = _palette_repo_command(_resolve)
+    command_map["codify"] = _palette_repo_command(_codify)
+    command_map["pushall"] = _palette_repo_command(
+        _pushall, remote="origin", execute=False, force=False
+    )
+    command_map["devlog"] = _palette_repo_command(_devlog, limit=5)
+    command_map["mock"] = mock_command
+    command_map["diff-ai"] = _palette_repo_command(_diff_ai)
+    command_map["settings"] = settings_command
     return command_map
 
 
