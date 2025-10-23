@@ -2,6 +2,6 @@
 
 from __future__ import annotations
 
-__all__ = ["CommandPalette"]
+from .palette import CommandPalette, PaletteCommand
 
-from .palette import CommandPalette
+__all__ = ["CommandPalette", "PaletteCommand"]
