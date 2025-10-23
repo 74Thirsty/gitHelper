@@ -21,7 +21,10 @@ from .utils.updater import check_for_update
 from .gui.app import MissingGuiDependencies, launch_gui
 
 console = Console()
-app = typer.Typer(help="gitHelper — modern Git and GitHub assistant")
+app = typer.Typer(
+    help="gitHelper — modern Git and GitHub assistant",
+    invoke_without_command=True,
+)
 
 PALETTE_COMMANDS: Dict[str, PaletteCommand] = {
     "onboard": PaletteCommand("onboard", "Run the guided onboarding experience."),
@@ -53,7 +56,7 @@ def _github_service(token_manager: TokenManager) -> Optional[GitHubService]:
         return None
 
 
-@app.callback()
+@app.callback(invoke_without_command=True)
 def main(
     ctx: typer.Context,
     verbose: bool = typer.Option(False, "--verbose", help="Enable debug logging."),
@@ -82,6 +85,8 @@ def main(
         console.print(
             f"[yellow]Update available: {release.tag_name} — {release.html_url}[/yellow]"
         )
+    if ctx.invoked_subcommand is None and not ctx.resilient_parsing:
+        palette(ctx)
 
 
 @app.command()
