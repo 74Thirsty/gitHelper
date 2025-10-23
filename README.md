@@ -149,55 +149,94 @@ If you prefer the original guided prompts, the `ghHelper.sh` script is still inc
 
 ## Prerequisites
 
-Before using this script, ensure that the following tools are installed on your system:
+Before you get started make sure you have:
 
-* **Pluma** (for editing `README.md`):
-  Install with:
+* **Python 3.9+** – the toolkit is developed and tested with modern Python releases.
+* **pip** – for installing the package dependencies.
+* **Git** – required for repository operations and for cloning this project.
+* **GitHub CLI (`gh`)** – optional, but enables the GitHub integrations exposed by the Neon Git Cockpit and several plug-ins.
 
-  ```bash
-  sudo apt install pluma
-  ```
-
-* **GitHub CLI (`gh`)** (for GitHub Codespaces integration):
-  Install with:
-
-  ```bash
-  sudo apt install gh
-  ```
+> macOS and most Linux distros already ship with Python and Git. On Windows we recommend installing [Python](https://www.python.org/downloads/) and [Git for Windows](https://git-scm.com/download/win). The GitHub CLI can be installed from the [official instructions](https://cli.github.com/manual/installation).
 
 ## Installation
 
-1. Download or clone this repository:
+1. **Clone the repository**
 
    ```bash
-   git clone https://github.com/username/repo.git
+   git clone https://github.com/74Thirsty/gitHelper.git
+   cd gitHelper
    ```
 
-2. Make the script executable:
+2. **(Optional) Create a virtual environment**
 
    ```bash
-   chmod +x github_operations.sh
+   python -m venv .venv
+   source .venv/bin/activate  # Windows: .venv\Scripts\activate
    ```
 
-3. Run the script:
+3. **Install the package and dependencies**
+
+   Use the editable install for development or contributions:
 
    ```bash
-   ./github_operations.sh
+   pip install -e .
    ```
+
+   Alternatively you can install from the provided requirements file:
+
+   ```bash
+   pip install -r requirements.txt
+   ```
+
+4. **Verify the installation**
+
+   ```bash
+   python -m git_helper --help
+   ```
+
+   This prints the CLI usage banner confirming the package imports correctly.
 
 ## Usage
 
-### Main Menu Options:
+### Launch the gitHelper control centre (CLI)
 
-* **Create a new branch**: Create a new Git branch for feature development or bug fixes.
-* **Checkout an existing branch**: Switch between branches within the repository.
-* **Add changes**: Stage changes (`git add .`).
-* **Commit changes**: Commit your staged changes with a commit message.
-* **Push changes**: Push your local commits to the remote repository.
-* **Force push**: Force push your changes to overwrite the remote history.
-* **Show all commits**: View the commit history.
-* **Revert to a previous commit**: Roll back the repository to a specific commit.
-* **Pull updates**: Fetch and merge the latest changes from the remote repository.
+The control centre provides a guided command palette focused on everyday automation tasks:
+
+```bash
+python -m git_helper
+```
+
+Select a command from the fuzzy-search palette or press `?` to review the available shortcuts. Configuration such as the default workspace directory is stored under `~/.config/git_helper/config.json`.
+
+### Launch the Neon Git Cockpit (Terminal UI)
+
+The TUI offers a rich dashboard for commits, branches, GitHub data, and plug-ins:
+
+```bash
+python neogit.py
+```
+
+Use the on-screen help (`?`) to learn the hotkeys. GitHub integration requires the `gh` CLI to be authenticated (`gh auth login`).
+
+### Use the classic Bash helper
+
+For the original guided shell prompts, run the Bash helper script directly:
+
+```bash
+./ghHelper.sh
+```
+
+The script handles repository housekeeping, committing, and pushing without needing to remember command syntax.
+
+### Running unit tests
+
+If you are contributing changes, execute the test suite before opening a pull request:
+
+```bash
+pytest
+```
+
+This ensures the automation helpers remain stable across Python versions and environments.
 * **Update `README.md`**: Open `README.md` for editing with Pluma. Commit and push changes to GitHub.
 
 ### GitHub Pages and Codespaces:
