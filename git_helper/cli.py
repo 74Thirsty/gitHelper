@@ -129,9 +129,6 @@ def main(
             f"[yellow]Update available: {release.tag_name} — {release.html_url}[/yellow]"
         )
     if ctx.invoked_subcommand is None and not ctx.resilient_parsing:
-        default_repo = ctx.obj.get("repo_path", Path.cwd().resolve())
-        ctx.obj["repo_path"] = _prompt_for_repo_path(default_repo)
-        console.print(f"[cyan]Using repository:[/cyan] {ctx.obj['repo_path']}")
         palette(ctx)
 
 
