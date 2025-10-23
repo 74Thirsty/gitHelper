@@ -1,2 +1,4 @@
-# gitHelper does not require any external Python packages at runtime.
-# This placeholder keeps tools that expect a requirements file happy.
+# Core runtime dependencies declared in pyproject.toml.
+# Optional GUI extras:
+# kivy>=2.2
+# kivymd>=1.1.1

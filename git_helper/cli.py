@@ -17,6 +17,8 @@ from .core.github import GitHubService, GitHubServiceError
 from .ui import CommandPalette, PaletteCommand
 from .utils import ConfigManager, TokenManager, configure_logging
 from .utils.token_manager import TokenManagerError
+from .utils.updater import check_for_update
+from .gui.app import MissingGuiDependencies, launch_gui
 
 console = Console()
 app = typer.Typer(help="gitHelper — modern Git and GitHub assistant")
@@ -55,7 +57,8 @@ def _github_service(token_manager: TokenManager) -> Optional[GitHubService]:
 def main(
     ctx: typer.Context,
     verbose: bool = typer.Option(False, "--verbose", help="Enable debug logging."),
-    gui: bool = typer.Option(False, "--gui", help="Attempt to launch the GUI fallback."),
+    gui: bool = typer.Option(False, "--gui", help="Launch the KivyMD GUI."),
+    theme: Optional[str] = typer.Option(None, "--theme", help="Select GUI theme (e.g. neon_dark)."),
 ) -> None:
     """Configure logging and bootstrap shared state."""
 
@@ -64,11 +67,21 @@ def main(
         "config": ConfigManager(),
         "token_manager": TokenManager(),
     }
+    if theme and not gui:
+        console.print("[yellow]Theme selection only applies when launching the GUI.[/yellow]")
     if gui:
-        console.print(
-            "[yellow]GUI mode is not yet implemented. Falling back to the enhanced CLI experience.[/yellow]"
-        )
+        try:
+            launch_gui(path=Path.cwd(), theme=theme)
+        except MissingGuiDependencies as exc:
+            console.print(f"[red]{exc}[/red]")
+            raise typer.Exit(1)
+        raise typer.Exit()
     console.print(f"[bold cyan]gitHelper[/bold cyan] v{__version__}")
+    release = check_for_update(__version__)
+    if release:
+        console.print(
+            f"[yellow]Update available: {release.tag_name} — {release.html_url}[/yellow]"
+        )
 
 
 @app.command()
