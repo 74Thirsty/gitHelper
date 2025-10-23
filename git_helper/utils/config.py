@@ -35,6 +35,9 @@ DEFAULT_CONFIG: Dict[str, Any] = {
         "default_org": "",
         "preferred_repos": [],
     },
+    "workspace": {
+        "repo_path": "",
+    },
     "ui": {
         "theme": "system",
         "use_gui": False,
@@ -93,6 +96,7 @@ class ConfigManager:
 
     def profile_summary(self) -> str:
         github = self.data.get("github", {})
+        workspace = self.data.get("workspace", {})
         ui = self.data.get("ui", {})
         editor = self.data.get("editor", {})
         lines = ["gitHelper profile summary:"]
@@ -102,6 +106,11 @@ class ConfigManager:
             lines.append("- Preferred repositories: " + ", ".join(preferred))
         else:
             lines.append("- Preferred repositories: none configured")
+        repo_path = workspace.get("repo_path")
+        if repo_path:
+            lines.append(f"- Default repository: {repo_path}")
+        else:
+            lines.append("- Default repository: not set")
         lines.append(f"- Preferred editor: {editor.get('command')}")
         lines.append(f"- UI theme: {ui.get('theme', 'system')}")
         lines.append(f"- GUI fallback enabled: {'yes' if ui.get('use_gui') else 'no'}")

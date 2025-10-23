@@ -108,10 +108,22 @@ def main(
     """Configure logging and bootstrap shared state."""
 
     configure_logging(verbose)
+    config = ConfigManager()
+    repo_path_setting = config.get("workspace", "repo_path", "")
+    repo_path = Path.cwd().resolve()
+    if repo_path_setting:
+        candidate = Path(repo_path_setting).expanduser()
+        if candidate.is_dir():
+            repo_path = candidate.resolve()
+        else:
+            console.print(
+                f"[yellow]Configured repository path {candidate} does not exist. "
+                "Falling back to current directory.[/yellow]"
+            )
     ctx.obj = {
-        "config": ConfigManager(),
+        "config": config,
         "token_manager": TokenManager(),
-        "repo_path": Path.cwd().resolve(),
+        "repo_path": repo_path,
     }
     if theme and not gui:
         console.print("[yellow]Theme selection only applies when launching the GUI.[/yellow]")
@@ -155,6 +167,11 @@ def onboard_command(ctx: typer.Context) -> None:
 
     config: ConfigManager = ctx.obj["config"]
     token_manager: TokenManager = ctx.obj["token_manager"]
+    stored_repo = config.get("workspace", "repo_path", "")
+    default_repo = Path(stored_repo).expanduser() if stored_repo else ctx.obj["repo_path"]
+    repo_path = _prompt_for_repo_path(default_repo)
+    config.set("workspace", "repo_path", str(repo_path))
+    ctx.obj["repo_path"] = repo_path
     console.print(Panel("Let's configure gitHelper for your GitHub workflow!", title="Onboarding"))
     default_org = typer.prompt("Default GitHub organisation", default=config.get("github", "default_org", ""))
     editor = typer.prompt("Preferred editor command", default=config.get("editor", "command"))
