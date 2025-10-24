@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from neogit_tui.plugins import Plugin
+from .base import Plugin
 
 from ..diagnostics import DiagnosticEngine
 

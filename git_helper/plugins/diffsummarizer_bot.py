@@ -5,7 +5,7 @@ from __future__ import annotations
 import os
 from typing import Any
 
-from neogit_tui.plugins import Plugin
+from .base import Plugin
 
 from ..diagnostics import DiffAnalyzer, ReportBuilder
 from ..diagnostics.query_engine import QueryEngine

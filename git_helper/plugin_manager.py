@@ -9,11 +9,11 @@ from pathlib import Path
 from types import ModuleType
 from typing import Iterable, List, Optional
 
-from neogit_tui.plugins import Plugin
+from .plugins.base import Plugin
 
 from .utils.settings import SettingsManager
 
-__all__ = ["PluginManager", "PluginState"]
+__all__ = ["Plugin", "PluginManager", "PluginState"]
 
 
 @dataclass
@@ -31,9 +31,6 @@ class PluginManager:
         self.settings = settings or SettingsManager()
         base_dir = Path(__file__).resolve().parent
         self.search_paths: List[tuple[Path, str]] = [(base_dir / "plugins", "git_helper.plugins")]
-        tui_plugins = base_dir.parent / "neogit_tui" / "plugins"
-        if tui_plugins.exists():
-            self.search_paths.append((tui_plugins, "neogit_tui.plugins"))
         if search_paths:
             for index, path in enumerate(search_paths):
                 root = Path(path)

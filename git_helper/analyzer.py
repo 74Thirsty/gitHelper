@@ -1,44 +1,55 @@
-import re
+"""Diff analyzer utilities used throughout the gitHelper GUI."""
+
+from __future__ import annotations
+
 from collections import Counter
+from dataclasses import dataclass
+from typing import Dict, Iterable
 
-def analyze_diff(diff_text):
-    # Parse diff sections
-    sections = diff_text.split('\n@@')
-    
-    # Extract statistics
-    additions = []
-    deletions = []
-    for section in sections:
-        if '@@' in section:
-            content = section.split('@@')[1]
-            for line in content.split('\n'):
-                if line.startswith('+ '):
-                    additions.append(line[2:])
-                elif line.startswith('- '):
-                    deletions.append(line[2:])
-    
-    # Analyze patterns
-    addition_patterns = Counter(additions)
-    deletion_patterns = Counter(deletions)
-    
-    return {
-        'addition_patterns': dict(addition_patterns),
-        'deletion_patterns': dict(deletion_patterns),
-        'total_changes': len(additions) + len(deletions)
-    }
 
-# Example diff text
-sample_diff = """@@ -1,5 +1,7 @@
- class MyClass:
--    def old_method(self):
--        pass
-     def __init__(self):
-         self.value = 42
-+    def new_method(self):
-+        return self.value"""
+@dataclass(frozen=True)
+class DiffSummary:
+    """Structured summary of a unified diff."""
 
-results = analyze_diff(sample_diff)
-print("Diff Analysis Results:")
-print(f"Total Changes: {results['total_changes']}")
-print("\nCommon Additions:", results['addition_patterns'])
-print("Common Deletions:", results['deletion_patterns'])
+    total_changes: int
+    additions: Dict[str, int]
+    deletions: Dict[str, int]
+
+    def as_lines(self) -> Iterable[str]:
+        """Render the summary as human readable lines."""
+
+        yield f"Total changes detected: {self.total_changes}"
+        if self.additions:
+            yield "Top additions:"
+            for line, count in sorted(self.additions.items(), key=lambda item: (-item[1], item[0])):
+                yield f"  + {line} ({count}×)"
+        if self.deletions:
+            yield "Top deletions:"
+            for line, count in sorted(self.deletions.items(), key=lambda item: (-item[1], item[0])):
+                yield f"  - {line} ({count}×)"
+
+
+class DiffAnalyzer:
+    """Utility class that extracts quick insights from git diffs."""
+
+    def summarize(self, diff_text: str) -> DiffSummary:
+        additions: Counter[str] = Counter()
+        deletions: Counter[str] = Counter()
+
+        for block in diff_text.split("\n@@"):
+            if "@@" not in block:
+                continue
+            _, _, content = block.partition("@@")
+            for line in content.splitlines():
+                if line.startswith("+++ ") or line.startswith("--- "):
+                    continue
+                if line.startswith("+"):
+                    additions[line[1:].lstrip()] += 1
+                elif line.startswith("-"):
+                    deletions[line[1:].lstrip()] += 1
+
+        total_changes = sum(additions.values()) + sum(deletions.values())
+        return DiffSummary(total_changes=total_changes, additions=dict(additions), deletions=dict(deletions))
+
+
+__all__ = ["DiffAnalyzer", "DiffSummary"]

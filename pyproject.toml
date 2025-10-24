@@ -23,7 +23,7 @@ gui = [
 ]
 
 [tool.setuptools]
-packages = ["git_helper", "neogit_tui"]
+packages = ["git_helper"]
 [project.scripts]
 git-helper = "git_helper.cli:main"
 githelper = "git_helper.__main__:main"
