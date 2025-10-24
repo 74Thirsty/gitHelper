@@ -1,64 +1,71 @@
+"""Runtime tracing utilities leveraged by the gitHelper GUI."""
+
+from __future__ import annotations
+
+from collections import defaultdict
+from dataclasses import dataclass
+from typing import Any, Dict, Iterable, List
+
+
+@dataclass(frozen=True)
+class TraceEvent:
+    """Immutable description of a traced function call."""
+
+    function: str
+    arg_types: List[str]
+    kwarg_types: Dict[str, str]
+    metadata: Dict[str, Any]
+
+
 class FunctionTracer:
-    def __init__(self):
-        self.call_stack = []
-        self.type_history = {}
-        
-    def trace_function(self, func_name, *args, **kwargs):
-        # Record function call
-        self.call_stack.append({
-            'function': func_name,
-            'args_types': [type(arg).__name__ for arg in args],
-            'kwargs_types': {k: type(v).__name__ for k, v in kwargs.items()}
-        })
-        
-        # Track argument types
+    """Collects lightweight runtime traces for GUI presentation."""
+
+    def __init__(self) -> None:
+        self._call_stack: List[TraceEvent] = []
+        self._type_history: Dict[str, List[str]] = defaultdict(list)
+
+    def trace_function(self, func_name: str, *args: Any, metadata: Dict[str, Any] | None = None, **kwargs: Any) -> None:
+        """Record a function invocation with basic argument type information."""
+
+        event = TraceEvent(
+            function=func_name,
+            arg_types=[type(arg).__name__ for arg in args],
+            kwarg_types={key: type(value).__name__ for key, value in kwargs.items()},
+            metadata=dict(metadata or {}),
+        )
+        self._call_stack.append(event)
+
         for arg in args:
-            if isinstance(arg, (list, tuple, dict)):
-                self._track_nested_types(arg)
-                
-        return self
-        
-    def _track_nested_types(self, obj):
+            self._track_nested_types(arg)
+        for value in kwargs.values():
+            self._track_nested_types(value)
+
+    def _track_nested_types(self, obj: Any) -> None:
         if isinstance(obj, dict):
-            for k, v in obj.items():
-                self.type_history.setdefault(type(k).__name__, []).append(str(k))
-                if isinstance(v, (list, tuple, dict)):
-                    self._track_nested_types(v)
-                else:
-                    self.type_history.setdefault(type(v).__name__, []).append(str(v))
-                    
-        elif isinstance(obj, (list, tuple)):
+            for key, value in obj.items():
+                self._type_history[type(key).__name__].append(str(key))
+                self._track_nested_types(value)
+        elif isinstance(obj, (list, tuple, set)):
             for item in obj:
-                if isinstance(item, (list, tuple, dict)):
-                    self._track_nested_types(item)
-                else:
-                    self.type_history.setdefault(type(item).__name__, []).append(str(item))
+                self._track_nested_types(item)
+        else:
+            self._type_history[type(obj).__name__].append(str(obj))
 
-    def get_trace_report(self):
-        return {
-            'call_stack': self.call_stack,
-            'type_usage': self.type_history
-        }
+    def call_stack(self) -> Iterable[TraceEvent]:
+        """Return the chronological call stack."""
 
-# Example usage
-tracer = FunctionTracer()
+        return list(self._call_stack)
 
-# Trace some function calls
-result = tracer.trace_function(
-    "process_data",
-    [1, 2, 3],           # List of integers
-    {"name": "John"},    # Dictionary with string key/value
-    debug=True           # Boolean kwarg
-)
+    def type_usage(self) -> Dict[str, List[str]]:
+        """Return collected nested type information."""
 
-# Print the trace report
-report = result.get_trace_report()
-print("Call Stack:")
-for call in report['call_stack']:
-    print(f"\nFunction: {call['function']}")
-    print(f"Arguments Types: {call['args_types']}")
-    print(f"Keyword Arguments Types: {call['kwargs_types']}")
+        return {key: list(values) for key, values in self._type_history.items()}
 
-print("\nType Usage History:")
-for type_name, instances in report['type_usage'].items():
-    print(f"{type_name}: {instances}")
+    def reset(self) -> None:
+        """Clear all tracked data."""
+
+        self._call_stack.clear()
+        self._type_history.clear()
+
+
+__all__ = ["FunctionTracer", "TraceEvent"]

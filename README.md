@@ -66,44 +66,30 @@ Prefer a neon-lit command center instead of memorising dozens of git commands? L
 ### Quickstart
 
 ```bash
-python3 neogit.py
-```
-
-```bash
 python -m git_helper
 ```
 
-Key hotkeys are always a `?` away:
+Launch the graphical workspace with:
 
-| Key | Action |
-| --- | --- |
-| `↑/↓` | Navigate commits |
-| `Space` | Checkout selected commit in a temporary branch |
-| `Tab` | Create a new branch from the highlighted commit |
-| `F` | Fast-forward to the tracked main branch |
-| `G` | Open GitHub panel (requires [`gh`](https://cli.github.com/)) |
-| `R` | Launch interactive rebase planner |
-| `P` | Browse and run plug-ins |
-| `D` | Toggle the danger zone overlay |
-| `/` | Search commits or jump to `#<issue>`/`#<PR>` |
-| `U` / `Shift+U` | Undo / redo git state snapshots |
-| `Q` | Quit the cockpit |
+```bash
+git-helper --gui
+```
 
-> **GitHub integration:** the cockpit auto-detects your `origin` remote. Make sure `gh auth login` has been run and the CLI is in PATH.
+The GUI opens directly in your current repository, providing the commit dashboard, plug-in hub, SSH key manager, diagnostics console, the new diff analyzer, and the runtime tracer views without needing any terminal hotkeys.
 
 ### Plug-in architecture
 
-Drop Python modules inside `neogit_tui/plugins/` that expose a `register()` function returning a `Plugin`. Each plug-in receives the active `GitInterface` instance, so you can build bots for semantic PR labels, AI commit messages, or workflow dashboards.
+Drop Python modules inside `git_helper/plugins/` (or point the settings manager at an additional directory) that expose a `register()` function returning a `Plugin`. Each plug-in receives the active Git interface, so you can build bots for semantic PR labels, AI commit messages, or workflow dashboards.
 
 ```python
-from neogit_tui.git import GitInterface
-from neogit_tui.plugins import Plugin
+from git_helper.git_core import GitCore
+from git_helper.plugins.base import Plugin
 
 
-def register() -> Plugin:
-    def run(git: GitInterface, app) -> str:
-        summary = git.diff_stat()
-        return f"Diff summary\n{summary}"
+def register(git: GitCore | None = None) -> Plugin:
+    def run(git_core: GitCore, app) -> str:
+        diff = git_core.run_custom(["diff", "--stat"]).stdout
+        return f"Diff summary\n{diff or 'No staged changes.'}"
 
     return Plugin(
         name="Diff Summariser",
@@ -112,13 +98,9 @@ def register() -> Plugin:
     )
 ```
 
-Restart the cockpit and your plug-in appears instantly in the `P` menu.
+Restart the GUI and your plug-in appears instantly in the Plug-in Centre panel.
 
 ## Features
-
-### Classic Bash Helper
-
-If you prefer the original guided prompts, the `ghHelper.sh` script is still included.
 
 ### General Git Operations:
 
@@ -208,23 +190,15 @@ python -m git_helper
 
 Select a command from the fuzzy-search palette or press `?` to review the available shortcuts. Configuration such as the default workspace directory is stored under `~/.config/git_helper/config.json`.
 
-### Launch the Neon Git Cockpit (Terminal UI)
+### Launch the gitHelper GUI
 
-The TUI offers a rich dashboard for commits, branches, GitHub data, and plug-ins:
-
-```bash
-python neogit.py
-```
-
-Use the on-screen help (`?`) to learn the hotkeys. GitHub integration requires the `gh` CLI to be authenticated (`gh auth login`).
-
-### Use the classic Bash helper
-
-For the original guided shell prompts, run the Bash helper script directly:
+Prefer visuals? Fire up the KivyMD-powered desktop app for repository dashboards, plug-in management, diff analysis, and the new runtime tracer:
 
 ```bash
-./ghHelper.sh
+git-helper --gui
 ```
+
+Pass `--theme neon_dark` for a neon-accented dark theme. The GUI automatically adopts the current repository and mirrors all plug-in functionality from the CLI.
 
 The script handles repository housekeeping, committing, and pushing without needing to remember command syntax.
 
